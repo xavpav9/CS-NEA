@@ -1,0 +1,19 @@
+{
+  "name": "nea",
+  "version": "1.0.0",
+  "description": "My A Level Computer Science Non Exam Assessment project.",
+  "homepage": "https://github.com/xavpav9/CS-NEA#readme",
+  "bugs": {
+    "url": "https://github.com/xavpav9/CS-NEA/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xavpav9/CS-NEA.git"
+  },
+  "author": "Xavier Tondelier <xtondelier@gmail.com>",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  }
+}
