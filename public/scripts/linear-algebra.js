@@ -224,7 +224,7 @@ const m4 = (function() {
       1, 0, 0, 0,
       0, 1, 0, 0,
       0, 0, 1, 0,
-      tx, ty, tz, 0
+      tx, ty, tz, 1
     ];
   }
 
@@ -295,7 +295,6 @@ const m4 = (function() {
     pitch,
     yaw,
   };
-  return {};
 })();
 
 export {m3, m4, v3, det2, det3, det4};
