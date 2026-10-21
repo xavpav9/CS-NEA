@@ -1,9 +1,11 @@
 import path from "node:path";
+import mime from "mime";
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 
 import indexRouter from "./routes/index.js";
+import gameRouter from "./routes/game.js";
 
 const PORT = /*process.env.PORT || */ 8080;
 
@@ -15,7 +17,8 @@ app.use(express.static(path.join(import.meta.dirname, "public")));
 app.set("views", path.join(import.meta.dirname, "views"));
 app.set("view engine", "pug");
 
-app.get("/", indexRouter);
+app.use("/", indexRouter);
+app.use("/game", gameRouter);
 
 
 

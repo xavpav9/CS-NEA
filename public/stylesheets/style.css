@@ -3,3 +3,13 @@
   margin: 0px;
   line-height: 1.5;
 }
+
+#c {
+  width: 500px;
+  height: 500px;
+  border: thin solid black;
+}
+
+body {
+  padding: 20px;
+}
