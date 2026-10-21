@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+
+import server from "./../app.js";
+import {PORT} from "./../app.js";
+
+server.listen(PORT, () => {
+  console.log(`Server is now running on port ${PORT}.`);
+});

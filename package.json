@@ -14,6 +14,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "start": "node ./bin/www",
+    "devstart": "nodemon ./bin/www",
+    "serverstart": "DEBUG=nea:* npm run devstart",
     "test": "jest",
     "watch": "jest --watch"
   },
@@ -25,9 +28,13 @@
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
+    "nodemon": "^3.1.14",
     "prettier": "3.9.10"
   },
   "dependencies": {
-    "help": "^3.0.2"
+    "express": "^5.3.0",
+    "help": "^3.0.2",
+    "pug": "^3.0.4",
+    "ws": "^8.22.0"
   }
 }
