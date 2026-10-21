@@ -1,3 +1,5 @@
+import {m3, m4, v3} from "./linear-algebra.js";
+
 async function main() {
   const canvas = document.querySelector("#c");
   const gl = canvas.getContext("webgl2");
@@ -15,7 +17,7 @@ async function main() {
   const program = createProgram(gl, vs, fs);
 
   const colourUniformLocation = gl.getUniformLocation(program, "u_colour");
-  const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+  const matrixUniformLocation = gl.getUniformLocation(program, "u_matrix");
   const positionAttribLocation = gl.getAttribLocation(program, "a_position");
 
   const positionBuffer = gl.createBuffer();
@@ -58,7 +60,7 @@ async function main() {
     gl.bindVertexArray(vao);
 
     gl.uniform4fv(colourUniformLocation, [1, 0, 0, 1]);
-    gl.uniform2fv(resolutionUniformLocation, [gl.canvas.width, gl.canvas.height]);
+    gl.uniformMatrix3fv(matrixUniformLocation, false, m3.projection(gl.canvas.width, gl.canvas.height));
 
     let primitiveType = gl.TRIANGLES;
     let offset = 0;
