@@ -1,12 +1,13 @@
 import {m4} from "./linear-algebra.js";
 
 class Node {
-  constructor() {
+  constructor(hasSource=true) {
     this.localMatrix = m4.identity();
     this.worldMatrix = m4.identity();
     this.children = [];
     this.parentNode = null;
-    this.source = new TRS();
+    this.hasSource = hasSource;
+    if (hasSource) this.source = new TRS();
   }
 
   setParent(parentNode) {
@@ -22,13 +23,14 @@ class Node {
   }
 
   updateWorldMatrix(parentNodeWorldMatrix=null, updateChildren=true) {
-    this.localMatrix = this.source.getMatrix();
+    if (this.hasSource) this.localMatrix = this.source.getMatrix();
 
-    if (this.parentNode || parentNodeWorldMatrix) {
-      this.worldMatrix = m4.multiply(this.parentNode.worldMatrix || parentNodeWorldMatrix, this.localMatrix);
+    if (parentNodeWorldMatrix || this.parentNode) {
+      this.worldMatrix = m4.multiply(parentNodeWorldMatrix || this.parentNode.worldMatrix, this.localMatrix);
     } else {
       this.worldMatrix = structuredClone(this.localMatrix);
     }
+
 
     if (updateChildren) this.children.forEach(child => child.updateWorldMatrix());
 
@@ -43,17 +45,17 @@ class TRS {
   }
 
   getMatrix() {
-    let matrix = m4.translation(...this.translation);
-    matrix = m4.roll(matrix, this.rotation[0]);
-    matrix = m4.pitch(matrix, this.rotation[1]);
+    let matrix = m4.scaling(...this.scaling);
     matrix = m4.yaw(matrix, this.rotation[2]);
-    return m4.scale(matrix, ...this.scaling);
+    matrix = m4.pitch(matrix, this.rotation[1]);
+    matrix = m4.roll(matrix, this.rotation[0]);
+    return m4.translate(matrix, ...this.translation);
   }
 }
 
 class Model extends Node {
-  constructor(geometryFile, textureFile, dimensions, atlasTexcoords=null) { // override texcoords for card atlas
-    super();
+  constructor(geometryFile, textureFile, dimensions, atlasTexcoords=null, hasSource=true) { // override texcoords for card atlas
+    super(hasSource);
     this.dimensions = dimensions; // 2 or 3
     this.w = {}; // webgl data
 
@@ -163,6 +165,7 @@ class Model extends Node {
 class Card {
   constructor(cardType) {
     this.type = cardType;
+    this.location = null; //TODO
     if (Card.texcoords[this.type]) this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
     else this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
   }
@@ -177,9 +180,14 @@ class Card {
 }
 
 class Player {
-  constructor(cards) {
+  constructor(cards, mainPlayer) {
     this.cards = cards;
-    // this.model = new Model(); // Possible player model.
+    this.model = new Model("card2.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
+    this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
+
+    for (const card of this.cards) {
+      card.model.setParent(this.model);
+    }
   }
 
   /*
@@ -196,4 +204,4 @@ class AnimationState { // Information about an animation currently taking place.
   }
 }
 
-export {Model, Card, Player, AnimationState};
+export {Model, Card, Player, AnimationState, Node, TRS};

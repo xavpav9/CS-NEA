@@ -5,10 +5,9 @@ const canvas = document.querySelector("#c");
 const scene = new Scene(canvas);
 scene.render();
 
-const card = new Card("6d");
-card.model.source.translation[2] = -10;
+const cards = [];
+for (let i=0; i<1; ++i) cards.push(new Card("6d"));
 
-scene.addModel(card.model).then(() => {
-  // scene.removeModel(card.model);
-});
+const player = new Player(cards, true);
 
+scene.addPlayer(player);

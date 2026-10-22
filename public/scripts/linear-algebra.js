@@ -31,8 +31,12 @@ const v3 = (function() {
     ];
   }
 
+  function magnitude(v) {
+    return Math.sqrt(v.reduce((acc, val) => acc + Math.pow(val, 2), 0));
+  }
+
   function normalise(v) {
-    const mag = Math.sqrt(v.reduce((acc, val) => acc + Math.pow(val, 2), 0));
+    const mag = magnitude(v);
     if (mag <= 0.000000001) return [0, 0, 0];
 
     return v.map(val => val / mag); 
@@ -44,6 +48,7 @@ const v3 = (function() {
   
   return {
     cross,
+    magnitude,
     normalise,
     subtract,
   };
@@ -214,7 +219,7 @@ const m4 = (function() {
     ];
   }
 
-  function lookAt(position, target, up) {
+  function lookAt(position, target, up=[0,1,0]) {
     const zAxis = v3.normalise(v3.subtract(position, target));
     const xAxis = v3.normalise(v3.cross(up, zAxis));
     const yAxis = v3.normalise(v3.cross(zAxis, xAxis));

@@ -1,14 +1,17 @@
 import {m3, m4, v3} from "./linear-algebra.js";
+import {Node} from "./objects.js";
 
 class Scene {
-  constructor(canvas, players) {
+  constructor(canvas) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext("webgl2");
-    this.players = players;
+    this.players = [];
     this.models = [];
     this.gameState = 0;
     this.animations = [];
     this.textureCount = 0;
+    this.cameraPosition = [0, 50, 30];
+    this.origin = new Node();
 
     this.programs = (async () => {
       const vsResponse = await fetch("../shaders/vs.glsl");
@@ -32,19 +35,31 @@ class Scene {
       const fsTex = this.createShader(this.gl.FRAGMENT_SHADER, fsTexSource);
 
       const texProgram = this.createProgram(vsTex, fsTex);
+
       return [program, texProgram];
     })();
   }
 
   /*
-   * Funcs:
-   * addPlayer(player);
-   *
    * Animations: - Activated from player objects
    * pickUpCard(player, card);
    * placeDownCard(player, card);
    * changeGameState(number); // What the player should be doing (e.g. waiting, playing, selecting 3 cards, etc.)
    */
+
+  async addPlayer(player) {
+    this.players.push(player);
+    player.model.setParent(this.origin);
+
+    if (player.mainPlayer) {
+      player.model.localMatrix = m4.lookAt(this.cameraPosition, [0, 0, 0]);
+    }
+
+    for (const card of player.cards) {
+      // card.model.source.translation = [0, -10, -10];
+      this.addModel(card.model);
+    }
+  }
 
   async addModel(model) {
     let size, type, normalise, stride, offset;
@@ -57,6 +72,7 @@ class Scene {
     model.w.vao = this.gl.createVertexArray();
     model.w.uniforms = {};
     model.w.uniformLocations = {};
+    model.worldViewProjectionMatrix = m4.identity();
 
     if (!(geometry.hasNormals || geometry.hasTexcoords)) {
       model.w.program = program;
@@ -111,6 +127,7 @@ class Scene {
       srcFormat = this.gl.RGBA;
       srcType = this.gl.UNSIGNED_BYTE;
       this.gl.texImage2D(this.gl.TEXTURE_2D, mipLevel, internalFormat, srcFormat, srcType, model.image);
+      this.gl.generateMipmap(this.gl.TEXTURE_2D);
 
       model.w.textureUnit = this.textureCount;
       this.textureCount++;
@@ -147,18 +164,39 @@ class Scene {
 
     this.resize();
 
-    const cameraPosition = [0, 0, 0];
     let then = 0;
 
     const draw = now =>  {
       const timeDelta = now - then;
       then = now;
 
-      this.resize()
+      // Calculate moving object values
+      this.cameraPosition[0] += timeDelta * 0.01;
 
+      // Set up viewProjectionMatrix
+      const cameraMatrix = m4.lookAt(this.cameraPosition, [0, 0, 0], [0, 1, 0])
+      for (const player of this.players) player.model.localMatrix = cameraMatrix;
+      const viewMatrix = m4.inverse(cameraMatrix);
+      const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
+      const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+
+      // Update model matrices
+      for (const model of this.models) {
+        model.source.translation = [0, 0, -15];
+        model.source.rotation = [Math.PI/2, 0, 0];
+
+        const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
+        model.worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
+      }
+
+      // Prepare to draw
+      this.origin.updateWorldMatrix();
+      this.resize()
       this.gl.clearColor(0, 0, 0, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
+
+      // Draw models
       for (const model of this.models) {
         this.gl.enable(this.gl.CULL_FACE);
         this.gl.cullFace(this.gl.BACK);
@@ -166,17 +204,7 @@ class Scene {
         this.gl.useProgram(model.w.program);
         this.gl.bindVertexArray(model.w.vao);
 
-        model.source.translation[1] -= timeDelta * 0.0001
-        model.updateWorldMatrix(null, false);
-
-        const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
-        const viewMatrix = m4.inverse(m4.translation(...cameraPosition));
-        const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
-
-        const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
-        const worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
-
-        this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, worldViewProjectionMatrix);
+        this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, model.worldViewProjectionMatrix);
 
         if (model.w.textureUnit !== undefined) this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
 
