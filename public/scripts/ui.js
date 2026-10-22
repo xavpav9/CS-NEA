@@ -10,7 +10,8 @@ class Scene {
     this.gameState = 0;
     this.animations = [];
     this.textureCount = 0;
-    this.cameraPosition = [0, 50, 30];
+    this.textures = [];
+    this.cameraPosition = [0, 20, 40];
     this.origin = new Node();
 
     this.programs = (async () => {
@@ -53,6 +54,28 @@ class Scene {
 
     if (player.mainPlayer) {
       player.model.localMatrix = m4.lookAt(this.cameraPosition, [0, 0, 0]);
+      player.position = this.cameraPosition;
+    }
+
+    // Lay out players in a regular polygon around centre
+    const playerCount = this.players.length;
+    if (playerCount > 1) {
+      const start = this.players.reduce((acc, player, inx) => player.mainPlayer ? inx : acc, 0);
+      let i = (start + 1) % playerCount;
+      let count = 1;
+
+      for (let i=((start + 1)%playerCount); i!=start; i=(i+1)%playerCount) {
+        // Multiply position by rotation matrix
+        const matrix = m4.pitchRotation(2 * count * Math.PI / playerCount);
+        const position = this.cameraPosition.concat(0).map((val, inx, arr) => {
+          return arr.reduce((acc, cur, row) => {
+            return acc + cur * matrix[inx + row * 4];
+          }, 0);
+        }).slice(0, 3);
+        this.players[i].model.localMatrix = m4.lookAt(position, [0, 0, 0]); 
+        this.players[i].position = position;
+        count++;
+      }
     }
 
     for (const card of player.cards) {
@@ -72,7 +95,6 @@ class Scene {
     model.w.vao = this.gl.createVertexArray();
     model.w.uniforms = {};
     model.w.uniformLocations = {};
-    model.worldViewProjectionMatrix = m4.identity();
 
     if (!(geometry.hasNormals || geometry.hasTexcoords)) {
       model.w.program = program;
@@ -87,6 +109,7 @@ class Scene {
       const texcoordAttribLocation = this.gl.getAttribLocation(model.w.program, "a_texcoord");
       const normalAttribLocation = this.gl.getAttribLocation(model.w.program, "a_normal");
 
+      // Set up normal buffer
       model.w.normalBuffer = this.gl.createBuffer();
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.normalBuffer);
       this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.normalBufferData), this.gl.STATIC_DRAW);
@@ -100,6 +123,7 @@ class Scene {
       this.gl.vertexAttribPointer(normalAttribLocation, size, type, normalise, stride, offset);
 
 
+      // Set up texture coordinate buffer
       model.w.texcoordBuffer = this.gl.createBuffer();
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.texcoordBuffer);
       this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.texcoordBufferData), this.gl.STATIC_DRAW);
@@ -112,15 +136,19 @@ class Scene {
       offset = 0;
       this.gl.vertexAttribPointer(texcoordAttribLocation, size, type, normalise, stride, offset);
 
+      // If texture already in use, use that textureUnit.
+      if (this.textures.includes(model.image)) model.w.textureUnit = this.textures.indexOf(model.image);
+      else model.w.textureUnit = this.textureCount;
+
+      // Set up texture
       const texture = this.gl.createTexture();
-      this.gl.activeTexture(this.gl.TEXTURE0 + this.textureCount);
+      this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
       this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
 
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
-
 
       mipLevel = 0;
       internalFormat = this.gl.RGBA;
@@ -129,8 +157,7 @@ class Scene {
       this.gl.texImage2D(this.gl.TEXTURE_2D, mipLevel, internalFormat, srcFormat, srcType, model.image);
       this.gl.generateMipmap(this.gl.TEXTURE_2D);
 
-      model.w.textureUnit = this.textureCount;
-      this.textureCount++;
+      if (model.w.textureUnit = this.textureCount) this.textureCount++;
     }
 
 
@@ -165,28 +192,32 @@ class Scene {
     this.resize();
 
     let then = 0;
+    let dist = 0;
 
     const draw = now =>  {
       const timeDelta = now - then;
       then = now;
 
-      // Calculate moving object values
-      this.cameraPosition[0] += timeDelta * 0.01;
+      dist += timeDelta * 0.0001;
 
-      // Set up viewProjectionMatrix
-      const cameraMatrix = m4.lookAt(this.cameraPosition, [0, 0, 0], [0, 1, 0])
-      for (const player of this.players) player.model.localMatrix = cameraMatrix;
+      // Set up viewProjectionMatrix and player source matrices
+      let cameraMatrix = m4.identity();
+      for (const player of this.players) {
+        const playerCameraMatrix = m4.lookAt(player.position, [0, 0, 0])
+        player.model.localMatrix = playerCameraMatrix;
+        if (player.mainPlayer) cameraMatrix = playerCameraMatrix;
+      }
+
       const viewMatrix = m4.inverse(cameraMatrix);
       const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
-      // Update model matrices
+      // Update card model matrices
       for (const model of this.models) {
-        model.source.translation = [0, 0, -15];
-        model.source.rotation = [Math.PI/2, 0, 0];
-
-        const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
-        model.worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
+        if (model.type === "card") {
+          model.source.translation = [0, -5, -15];
+          model.source.rotation = [Math.PI/2, 0, dist*10];
+        }
       }
 
       // Prepare to draw
@@ -194,29 +225,44 @@ class Scene {
       this.resize()
       this.gl.clearColor(0, 0, 0, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+      let previousProgram = null;
+      let previousVao = null;
 
 
       // Draw models
       for (const model of this.models) {
-        this.gl.enable(this.gl.CULL_FACE);
-        this.gl.cullFace(this.gl.BACK);
-        this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.useProgram(model.w.program);
-        this.gl.bindVertexArray(model.w.vao);
+        if (model.type === "card") {
+          this.gl.enable(this.gl.CULL_FACE);
+          this.gl.cullFace(this.gl.BACK);
+          this.gl.enable(this.gl.DEPTH_TEST);
 
-        this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, model.worldViewProjectionMatrix);
-
-        if (model.w.textureUnit !== undefined) this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
-
-        for (const uniform in model.w.uniforms) {
-          if (uniform !== "matrix") {
-            this.gl.uniform4fv(model.w.uniformLocations[uniform], model.w.uniforms[uniform]);
+          if (model.w.program !== previousProgram) {
+            this.gl.useProgram(model.w.program);
+            previousProgram = model.w.program;
           }
-        }
+          if (model.w.vao !== previousVao) {
+            this.gl.bindVertexArray(model.w.vao);
+            previousVao = model.w.vao;
+          }
 
-        let primitiveType = this.gl.TRIANGLES;
-        let offset = 0;
-        this.gl.drawArrays(primitiveType, offset, model.w.count);
+
+          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
+          const worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
+
+          this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, worldViewProjectionMatrix);
+
+          if (model.w.textureUnit !== undefined) this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
+
+          for (const uniform in model.w.uniforms) {
+            if (uniform !== "matrix") {
+              this.gl.uniform4fv(model.w.uniformLocations[uniform], model.w.uniforms[uniform]);
+            }
+          }
+
+          let primitiveType = this.gl.TRIANGLES;
+          let offset = 0;
+          this.gl.drawArrays(primitiveType, offset, model.w.count);
+        }
       }
 
       requestAnimationFrame(draw);

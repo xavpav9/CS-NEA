@@ -54,8 +54,9 @@ class TRS {
 }
 
 class Model extends Node {
-  constructor(geometryFile, textureFile, dimensions, atlasTexcoords=null, hasSource=true) { // override texcoords for card atlas
+  constructor(type, geometryFile, textureFile, dimensions, atlasTexcoords=null, hasSource=true) { // override texcoords for card atlas
     super(hasSource);
+    this.type = type;
     this.dimensions = dimensions; // 2 or 3
     this.w = {}; // webgl data
 
@@ -65,9 +66,13 @@ class Model extends Node {
 
   static textureCache = {};
   getImage(file) {
+    const key = JSON.stringify(file);
+    if (Model.textureCache[key]) return Model.textureCache[key];
+
     const image = new Image();
     image.src = file;
 
+    Model.textureCache[key] = image;
     return image;
   }
 
@@ -166,8 +171,8 @@ class Card {
   constructor(cardType) {
     this.type = cardType;
     this.location = null; //TODO
-    if (Card.texcoords[this.type]) this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
-    else this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
+    if (Card.texcoords[this.type]) this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
+    else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
   }
 
   static geometryFile = "card2.obj";
@@ -182,8 +187,9 @@ class Card {
 class Player {
   constructor(cards, mainPlayer) {
     this.cards = cards;
-    this.model = new Model("card2.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
+    this.model = new Model("player", "card2.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
+    this.position = [0, 0, 0];
 
     for (const card of this.cards) {
       card.model.setParent(this.model);

@@ -5,9 +5,20 @@ const canvas = document.querySelector("#c");
 const scene = new Scene(canvas);
 scene.render();
 
-const cards = [];
-for (let i=0; i<1; ++i) cards.push(new Card("6d"));
+function makeCards(num, blank=false) {
+  const cards = [];
+  for (let i=0; i<num; ++i) cards.push(new Card(blank ? "blank" : "6d"));
+  return cards;
+}
 
-const player = new Player(cards, true);
+const player1 = new Player(makeCards(1, false), true);
+const player2 = new Player(makeCards(1, true), false);
+const player3 = new Player(makeCards(1, true), false);
+const player4 = new Player(makeCards(1, true), false);
+const player5 = new Player(makeCards(1, true), false);
 
-scene.addPlayer(player);
+scene.addPlayer(player1);
+scene.addPlayer(player2);
+scene.addPlayer(player3);
+scene.addPlayer(player4);
+scene.addPlayer(player5);
