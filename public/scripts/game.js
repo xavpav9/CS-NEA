@@ -5,9 +5,9 @@ const canvas = document.querySelector("#c");
 const scene = new Scene(canvas);
 scene.render();
 
-const model = new Model("card.obj", "", 3);
+const card = new Card("6d");
 
-scene.addModel(model).then(() => {
-  // scene.removeModel(model);
+scene.addModel(card.model).then(() => {
+  // scene.removeModel(card.model);
 });
 

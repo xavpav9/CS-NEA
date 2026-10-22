@@ -1,12 +1,18 @@
 class Model {
-  constructor(geometryFile, textureFile, dimensions) {
-    this.dimensions = dimensions;
-    this.geometry = this.parseGeometry(`../models/${geometryFile}`); // promise
+  constructor(geometryFile, textureFile, dimensions, atlasTexcoords=null) { // override texcoords for card atlas
+    this.dimensions = dimensions; // 2 or 3
     this.w = {}; // webgl data
-    // this.texture = this.getTexture(`../textures/${textureFile}`); // promise
+
+    this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
+    this.image = this.getImage(`../textures/${textureFile}`); // promise
   }
 
-  async getTexture(file) {
+  static textureCache = {};
+  getImage(file) {
+    const image = new Image();
+    image.src = file;
+
+    return image;
   }
 
 
@@ -18,25 +24,41 @@ class Model {
     f: function(geometry, args) {
       for (let i=0; i<args.length-2; ++i) {
         for (let j=0; j<3; ++j) {
-          geometry.faces.push(parseFloat(args[(j === 0) ? 0 : i+j]))
+          geometry.faces.push(args[(j === 0) ? 0 : i+j].split("/").map(parseFloat).map(val => Number.isNaN(val) ? null : val));
         };
       };
     },
 
+    vn: function(geometry, args) {
+      geometry.normals.push(args.map(parseFloat));
+    },
+
+    vt: function(geometry, args) {
+      geometry.texcoords.push(args.map(parseFloat));
+    },
+
     "#": function(geometry, args) {},
+    o: function(geometry, args) {},
   }
 
-  static cache = {};
-  async parseGeometry(file) { // obj files // only for v and f (no vn etc. yet)
+  static geometryCache = {};
+  async parseGeometry(file, atlasTexcoords=null) { // obj files only
     const key = JSON.stringify(file);
-    if (Model.cache[key]) return Model.cache[key];
+    if (Model.geometryCache[key]) return Model.geometryCache[key];
 
     const geometry = {
       vertices: [],
       faces: [],
       texcoords: [],
       normals: [],
+
       bufferData: [],
+      normalBufferData: [],
+      texcoordBufferData: [],
+
+      hasVertices: true,
+      hasTexcoords: false,
+      hasNormals: false,
     }
 
     const response = await fetch(file)
@@ -52,11 +74,34 @@ class Model {
       Model.properties[property](geometry, args);
     }
 
-    for (const face of geometry.faces) {
-      geometry.bufferData.push(...geometry.vertices[face-1]);
+
+    if (atlasTexcoords !== null) { // atlasTexcoords = [[minx, maxx], [miny, maxy]] for the front face, then again for the back face.
+
+      // texcoord = [0,0], [0,1], [1,0] or [1,1]
+      let count = 0;
+      for (const texcoord of geometry.texcoords) {
+        for (let i=0; i<2; ++i) {
+          texcoord[i] = atlasTexcoords[Math.floor(count / 4)][i][texcoord[i]];
+        }
+        count++;
+      }
     }
 
-    Model.cache[key] = geometry;
+
+    const firstFace = geometry.faces[0];
+    if (firstFace.length === 2) geometry.hasTexcoords = true;
+    else if (firstFace.length === 3) {
+      geometry.hasTexcoords = (firstFace[1] === null) ? false : true;
+      geometry.hasNormals = true;
+    }
+
+    for (const face of geometry.faces) {
+      geometry.bufferData.push(...geometry.vertices[face[0]-1]);
+      if (geometry.hasTexcoords) geometry.texcoordBufferData.push(...geometry.texcoords[face[1]-1]);
+      if (geometry.hasNormals) geometry.normalBufferData.push(...geometry.normals[face[2]-1]);
+    }
+
+    Model.geometryCache[key] = geometry;
     return geometry;
   }
 }
@@ -64,20 +109,20 @@ class Model {
 class Card {
   constructor(cardType) {
     this.type = cardType;
-    this.model = Model(geometryFile, texturesFiles[cardType]);
+    this.model = new Model(Card.geometryFile, Card.textureFile, 3, Card.texcoords[this.type]);
   }
 
-  static geometryFile = "card.obj";
-  /*
-  static textureFiles = {
+  static geometryFile = "card2.obj";
+  static textureFile = "card-atlas.png";
+  static texcoords = {
+    "6d": [[[0, .5], [0, 1]], [[.5, 1], [0, 1]]],
   } // Plus a blank version for other player's cards.
-  */
 }
 
 class Player {
   constructor(cards) {
     this.cards = cards;
-    // this.model = Model(); // Possible player model.
+    // this.model = new Model(); // Possible player model.
   }
 
   /*

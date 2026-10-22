@@ -8,6 +8,7 @@ class Scene {
     this.models = [];
     this.gameState = 0;
     this.animations = [];
+    this.textureCount = 0;
 
     this.programs = (async () => {
       const vsResponse = await fetch("../shaders/vs.glsl");
@@ -20,7 +21,18 @@ class Scene {
       const fs = this.createShader(this.gl.FRAGMENT_SHADER, fsSource);
 
       const program = this.createProgram(vs, fs);
-      return [program];
+
+      const vsTexResponse = await fetch("../shaders/vsTex.glsl");
+      const vsTexSource = await vsTexResponse.text();
+      const vsTex = this.createShader(this.gl.VERTEX_SHADER, vsTexSource);
+
+
+      const fsTexResponse = await fetch("../shaders/fsTex.glsl");
+      const fsTexSource = await fsTexResponse.text();
+      const fsTex = this.createShader(this.gl.FRAGMENT_SHADER, fsTexSource);
+
+      const texProgram = this.createProgram(vsTex, fsTex);
+      return [program, texProgram];
     })();
   }
 
@@ -35,41 +47,93 @@ class Scene {
    */
 
   async addModel(model) {
-    const bufferData = (await model.geometry).bufferData;
-    const [program] = await this.programs;
+    let size, type, normalise, stride, offset;
+    let mipLevel, internalFormat, srcFormat, srcType;
 
-    model.w.count = bufferData.length / model.dimensions;
-    model.w.program = program;
+    const geometry = await model.geometry;
+    const [program, texProgram] = await this.programs;
 
-    const colourUniformLocation = this.gl.getUniformLocation(model.w.program, "u_colour");
+    model.w.count = geometry.bufferData.length / model.dimensions;
+    model.w.vao = this.gl.createVertexArray();
+    model.w.uniforms = {};
+    model.w.uniformLocations = {};
+
+    if (!(geometry.hasNormals || geometry.hasTexcoords)) {
+      model.w.program = program;
+      const colourUniformLocation = this.gl.getUniformLocation(model.w.program, "u_colour");
+
+      model.w.uniforms.colour = [1, 0, 0, 1];
+      model.w.uniformLocations.colour = colourUniformLocation;
+
+    } else {
+      model.w.program = texProgram;
+      const imageUniformLocation = this.gl.getUniformLocation(model.w.program, "u_image");
+      const texcoordAttribLocation = this.gl.getAttribLocation(model.w.program, "a_texcoord");
+      const normalAttribLocation = this.gl.getAttribLocation(model.w.program, "a_normal");
+
+      model.w.normalBuffer = this.gl.createBuffer();
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.normalBuffer);
+      this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.normalBufferData), this.gl.STATIC_DRAW);
+      this.gl.bindVertexArray(model.w.vao);
+      this.gl.enableVertexAttribArray(normalAttribLocation);
+      size = 3;
+      type = this.gl.FLOAT;
+      normalise = false;
+      stride = 0;
+      offset = 0;
+      this.gl.vertexAttribPointer(normalAttribLocation, size, type, normalise, stride, offset);
+
+
+      model.w.texcoordBuffer = this.gl.createBuffer();
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.texcoordBuffer);
+      this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.texcoordBufferData), this.gl.STATIC_DRAW);
+      this.gl.bindVertexArray(model.w.vao);
+      this.gl.enableVertexAttribArray(texcoordAttribLocation);
+      size = 2;
+      type = this.gl.FLOAT;
+      normalise = false;
+      stride = 0;
+      offset = 0;
+      this.gl.vertexAttribPointer(texcoordAttribLocation, size, type, normalise, stride, offset);
+
+      const texture = this.gl.createTexture();
+      this.gl.activeTexture(this.gl.TEXTURE0 + this.textureCount);
+      this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+
+
+      mipLevel = 0;
+      internalFormat = this.gl.RGBA;
+      srcFormat = this.gl.RGBA;
+      srcType = this.gl.UNSIGNED_BYTE;
+      this.gl.texImage2D(this.gl.TEXTURE_2D, mipLevel, internalFormat, srcFormat, srcType, model.image);
+
+      model.w.textureUnit = this.textureCount;
+      this.textureCount++;
+    }
+
+
     const matrixUniformLocation = this.gl.getUniformLocation(model.w.program, "u_matrix");
     const positionAttribLocation = this.gl.getAttribLocation(model.w.program, "a_position");
 
     model.w.buffer = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.buffer);
-
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(bufferData), this.gl.STATIC_DRAW);
-    
-    model.w.vao = this.gl.createVertexArray();
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.bufferData), this.gl.STATIC_DRAW);
     this.gl.bindVertexArray(model.w.vao);
-
     this.gl.enableVertexAttribArray(positionAttribLocation);
-    let size = model.dimensions;
-    let type = this.gl.FLOAT;
-    let normalise = false;
-    let stride = 0;
-    let offset = 0;
+    size = model.dimensions;
+    type = this.gl.FLOAT;
+    normalise = false;
+    stride = 0;
+    offset = 0;
     this.gl.vertexAttribPointer(positionAttribLocation, size, type, normalise, stride, offset);
 
-    model.w.uniforms = {
-      colour: [1, 0, 0, 1],
-      matrix: m4.yawRotation(Math.PI), // y is opposite way around for models
-    };
-
-    model.w.uniformLocations = {
-      colour: colourUniformLocation,
-      matrix: matrixUniformLocation,
-    }
+    model.w.uniforms.matrix = m4.yawRotation(Math.PI), // y is opposite way around for models
+    model.w.uniformLocations.matrix = matrixUniformLocation, // y is opposite way around for models
 
     this.models.push(model);
   }
@@ -91,21 +155,22 @@ class Scene {
       const timeDelta = now - then;
       then = now;
 
-      angle += timeDelta * 0.001;
+      angle += timeDelta * 0.002;
 
       this.resize()
 
-      for (const model of this.models) {
-        this.gl.clearColor(0, 0, 0, 0);
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+      this.gl.clearColor(0, 0, 0, 1);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-        // this.gl.enable(this.gl.CULL_FACE);
-        // this.gl.cullFace(this.gl.FRONT);
+
+      for (const model of this.models) {
+        this.gl.enable(this.gl.CULL_FACE);
+        this.gl.cullFace(this.gl.BACK);
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.useProgram(model.w.program);
         this.gl.bindVertexArray(model.w.vao);
 
-        const worldMatrix = m4.translate(m4.roll(m4.pitch(m4.yaw(model.w.uniforms.matrix, angle / 2), angle / 3), angle / 4), 0, 0, -20);
+        const worldMatrix = m4.translate(m4.roll(m4.pitch(m4.yaw(model.w.uniforms.matrix, angle / 2), angle / 3), angle / 4), 0, 0, -10);
         const viewMatrix = m4.inverse(m4.translation(...cameraPosition));
         const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
 
@@ -114,6 +179,7 @@ class Scene {
 
         this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, worldViewProjectionMatrix);
 
+        if (model.w.textureUnit !== undefined) this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
 
         for (const uniform in model.w.uniforms) {
           if (uniform !== "matrix") {
