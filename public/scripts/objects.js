@@ -1,5 +1,59 @@
-class Model {
+import {m4} from "./linear-algebra.js";
+
+class Node {
+  constructor() {
+    this.localMatrix = m4.identity();
+    this.worldMatrix = m4.identity();
+    this.children = [];
+    this.parentNode = null;
+    this.source = new TRS();
+  }
+
+  setParent(parentNode) {
+    if (this.parentNode) {
+      this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1);
+    }
+
+    if (parentNode) { // so not null
+      parentNode.children.push(this);
+    }
+
+    this.parentNode = parentNode;
+  }
+
+  updateWorldMatrix(parentNodeWorldMatrix=null, updateChildren=true) {
+    this.localMatrix = this.source.getMatrix();
+
+    if (this.parentNode || parentNodeWorldMatrix) {
+      this.worldMatrix = m4.multiply(this.parentNode.worldMatrix || parentNodeWorldMatrix, this.localMatrix);
+    } else {
+      this.worldMatrix = structuredClone(this.localMatrix);
+    }
+
+    if (updateChildren) this.children.forEach(child => child.updateWorldMatrix());
+
+  }
+}
+
+class TRS {
+  constructor(translation=[0,0,0], rotation=[0,0,0], scaling=[1,1,1]) {
+    this.translation = translation;
+    this.rotation = rotation;
+    this.scaling = scaling;
+  }
+
+  getMatrix() {
+    let matrix = m4.translation(...this.translation);
+    matrix = m4.roll(matrix, this.rotation[0]);
+    matrix = m4.pitch(matrix, this.rotation[1]);
+    matrix = m4.yaw(matrix, this.rotation[2]);
+    return m4.scale(matrix, ...this.scaling);
+  }
+}
+
+class Model extends Node {
   constructor(geometryFile, textureFile, dimensions, atlasTexcoords=null) { // override texcoords for card atlas
+    super();
     this.dimensions = dimensions; // 2 or 3
     this.w = {}; // webgl data
 
@@ -109,13 +163,16 @@ class Model {
 class Card {
   constructor(cardType) {
     this.type = cardType;
-    this.model = new Model(Card.geometryFile, Card.textureFile, 3, Card.texcoords[this.type]);
+    if (Card.texcoords[this.type]) this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
+    else this.model = new Model(Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
   }
 
   static geometryFile = "card2.obj";
   static textureFile = "card-atlas.png";
   static texcoords = {
-    "6d": [[[0, .5], [0, 1]], [[.5, 1], [0, 1]]],
+    "blank": [[0, 0], [0, 0]],
+    "6d": [[0, .5], [0, 1]],
+    "back": [[.5, 1], [0, 1]],
   } // Plus a blank version for other player's cards.
 }
 
@@ -133,6 +190,8 @@ class Player {
 
 class AnimationState { // Information about an animation currently taking place.
   constructor(type, time) {
+    this.maxTime = time;
+    this.start = Date.now();
     // type could be changing a game state, placing a card, declaring the winner etc.
   }
 }

@@ -132,8 +132,8 @@ class Scene {
     offset = 0;
     this.gl.vertexAttribPointer(positionAttribLocation, size, type, normalise, stride, offset);
 
-    model.w.uniforms.matrix = m4.yawRotation(Math.PI), // y is opposite way around for models
-    model.w.uniformLocations.matrix = matrixUniformLocation, // y is opposite way around for models
+    model.w.uniforms.matrix = m4.yawRotation(Math.PI); // y is opposite way around for models
+    model.w.uniformLocations.matrix = matrixUniformLocation;
 
     this.models.push(model);
   }
@@ -148,20 +148,16 @@ class Scene {
     this.resize();
 
     const cameraPosition = [0, 0, 0];
-    let angle = 0;
     let then = 0;
 
     const draw = now =>  {
       const timeDelta = now - then;
       then = now;
 
-      angle += timeDelta * 0.002;
-
       this.resize()
 
       this.gl.clearColor(0, 0, 0, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-
 
       for (const model of this.models) {
         this.gl.enable(this.gl.CULL_FACE);
@@ -170,7 +166,10 @@ class Scene {
         this.gl.useProgram(model.w.program);
         this.gl.bindVertexArray(model.w.vao);
 
-        const worldMatrix = m4.translate(m4.roll(m4.pitch(m4.yaw(model.w.uniforms.matrix, angle / 2), angle / 3), angle / 4), 0, 0, -10);
+        model.source.translation[1] -= timeDelta * 0.0001
+        model.updateWorldMatrix(null, false);
+
+        const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
         const viewMatrix = m4.inverse(m4.translation(...cameraPosition));
         const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
 
