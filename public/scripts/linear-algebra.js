@@ -132,6 +132,12 @@ const m3 = (function() {
   const scale = (m, sx, sy) => multiply(scaling(sx, sy), m);
   const rotate = (m, rad) => multiply(rotation(rad), m);
 
+  const identity = () => [
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1,
+  ];
+
   return {
     multiply,
     inverse,
@@ -145,6 +151,8 @@ const m3 = (function() {
     translate,
     scale,
     rotate,
+
+    identity,
   };
 })();
 
@@ -276,6 +284,13 @@ const m4 = (function() {
   const pitch = (m, rad) => multiply(pitchRotation(rad), m);
   const yaw = (m, rad) => multiply(yawRotation(rad), m);
 
+  const identity = () => [
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+  ];
+
   return {
     multiply,
     inverse,
@@ -294,6 +309,8 @@ const m4 = (function() {
     roll,
     pitch,
     yaw,
+
+    identity,
   };
 })();
 
