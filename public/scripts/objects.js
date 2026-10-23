@@ -59,6 +59,7 @@ class Model extends Node {
     this.type = type;
     this.dimensions = dimensions; // 2 or 3
     this.w = {}; // webgl data
+    this.id = 0; // Picking id
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -170,6 +171,7 @@ class Model extends Node {
 class Card {
   constructor(cardType) {
     this.type = cardType;
+    this.id = null;
     this.location = null; //TODO
     if (Card.texcoords[this.type]) this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
     else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);

@@ -11,8 +11,8 @@ function makeCards(num, blank=false) {
   return cards;
 }
 
-const player1 = new Player(makeCards(9, true), false);
-const player2 = new Player(makeCards(1, false), true);
+const player1 = new Player(makeCards(1, true), false);
+const player2 = new Player(makeCards(8, false), true);
 const player3 = new Player(makeCards(4, true), false);
 const player4 = new Player(makeCards(13, true), false);
 
