@@ -5,16 +5,16 @@ class Scene {
   constructor(canvas) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext("webgl2");
-    this.players = [];
-    this.models = [];
-    this.cards = [];
-    this.gameState = 0;
+    this.players = []; // Players in game
+    this.models = []; // Models to render
+    this.cards = []; // Cards in play
     this.textureCount = 1; // 0 is the picking texture
-    this.textures = [null];
+    this.textures = [null]; // Cache of textures
     this.cameraPosition = [0, 30, 50];
     this.origin = new Node(); // Root node of scene graph
-    this.idCount = 1; // picking id
+    this.idCount = 1; // Picking id
     this.currentId = 0; // Current thing being picked (0 = nothing)
+    this.active = true; // Whether rendering or not
 
     this.mouseX = -1;
     this.mouseY = -1;
@@ -29,12 +29,12 @@ class Scene {
       if (evt.button === 0 && this.currentId !== 0) {
         const card = this.cards.find(val => val.id === this.currentId);
 
+        // Keep card in air when clicked.
         if (card.getAnimationType() === "up") {
           card.setAnimation(new Animation("upstick", 0));
         } else {
           card.setAnimation(new Animation("up", 100, 100), true);
         }
-        // do something
       }
     });
 
@@ -78,7 +78,7 @@ class Scene {
     })();
   }
 
-  /*
+  /* TODO
    * Animations: - Activated from player objects
    * pickUpCard(player, card);
    * placeDownCard(player, card);
@@ -89,10 +89,7 @@ class Scene {
     this.players.push(player);
     player.model.setParent(this.origin);
 
-    if (player.mainPlayer) {
-      player.model.localMatrix = m4.lookAt(this.cameraPosition, [0, 0, 0]);
-      player.position = this.cameraPosition;
-    }
+    if (player.mainPlayer) player.position = this.cameraPosition;
 
     // Lay out players in a regular polygon around centre
     const playerCount = this.players.length;
@@ -109,33 +106,31 @@ class Scene {
             return acc + cur * matrix[inx + row * 4];
           }, 0);
         }).slice(0, 3);
-        this.players[i].model.localMatrix = m4.lookAt(position, [0, 0, 0]); 
         this.players[i].position = position;
         count++;
       }
     }
 
-    for (const card of player.cards) {
-      // card.model.source.translation = [0, -10, -10];
-      card.id = this.idCount;
-      card.model.id = this.idCount;
-      card.player = player;
-      card.model.player = player;
-
-      this.cards.push(card);
-      this.addModel(card.model);
-      this.idCount++;
-    }
+    player.cards.forEach(card => this.addCard(card, player));
   }
 
-  async addModel(model) {
+  async addCard(card, player) {
+    card.id = this.idCount;
+    card.player = player;
+
+    this.cards.push(card);
+    this.addModel(card.model);
+    this.idCount++;
+  }
+
+  async addModel(model) { // 3D model
     let size, type, normalise, stride, offset;
     let mipLevel, internalFormat, srcFormat, srcType;
 
     const geometry = await model.geometry;
     const [program, texProgram] = await this.programs;
 
-    model.w.count = geometry.bufferData.length / model.dimensions;
+    model.w.count = geometry.bufferData.length / 3;
     model.w.vao = this.gl.createVertexArray();
     model.w.uniforms = {};
     model.w.uniformLocations = {};
@@ -213,12 +208,13 @@ class Scene {
     const viewProjectionMatrixUniformLocation = this.gl.getUniformLocation(model.w.program, "u_viewProjection");
     const positionAttribLocation = this.gl.getAttribLocation(model.w.program, "a_position");
 
+    // Set up position buffer
     model.w.buffer = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, model.w.buffer);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(geometry.bufferData), this.gl.STATIC_DRAW);
     this.gl.bindVertexArray(model.w.vao);
     this.gl.enableVertexAttribArray(positionAttribLocation);
-    size = model.dimensions;
+    size = 3;
     type = this.gl.FLOAT;
     normalise = false;
     stride = 0;
@@ -266,6 +262,8 @@ class Scene {
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, textureAttachmentPoint, this.gl.TEXTURE_2D, pickingTexture, level);
     this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, renderbufferAttachmentPoint, this.gl.RENDERBUFFER, pickingRenderbuffer);
 
+    // Set framebuffer sizes (1 by 1)
+    
     this.gl.activeTexture(this.gl.TEXTURE0 + 0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, pickingTexture);
     const internalFormat = this.gl.RGBA;
@@ -303,46 +301,48 @@ class Scene {
         card.animate();
       }
 
-      // Set up viewProjectionMatrix and player source matrices
+      // Set up cameraMatrix and card translations
       let cameraMatrix = m4.identity();
       const angleSeparation = Math.PI/28; // Separation of cards on circle around player.
       const cardDist = 18; // Radius of circle which cards lie on from the player.
-      const horizon = -2; // How far cards are below horizon.
+      const dip = -2; // How far cards are below line-of-sight of player.
       for (const player of this.players) {
         const playerCameraMatrix = m4.lookAt(player.position, [0, 0, 0])
         player.model.localMatrix = playerCameraMatrix;
         if (player.mainPlayer) cameraMatrix = playerCameraMatrix;
 
+        // Set up cards in a circle around player.
         const numOfCards = player.cards.length;
         let count = 0;
         for (const card of player.cards) {
-          card.model.source.translation[0] += cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
-          card.model.source.translation[2] += -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
+          const model = card.model;
+          model.source.translation[0] += cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
+          model.source.translation[1] += dip;
+          model.source.translation[2] += -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
           count++;
         }
       }
 
+      // Set up viewProjectionMatrix
       const viewMatrix = m4.inverse(cameraMatrix);
       const projectionMatrix = m4.perspective(fovY, this.gl.canvas.width/this.gl.canvas.height, near, far);
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
-      // Update card model matrices
+      // Update card source matrices
       for (const card of this.cards) {
         const model = card.model;
 
-        model.source.translation[1] += horizon;
         // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
-        model.source.rotation[0] += Math.acos(-horizon/cardDist)
-        model.source.rotation[1] += 0
-        model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32;
+        model.source.rotation[0] += Math.acos(-dip/cardDist) // roll
+        model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32; // yaw
       }
 
-
-      // Prepare to draw to canvas p1
+      // gl.useProgram/gl.bindVertexArray is not necessary when it is already in use.
       let previousProgram = null;
       let previousVao = null;
 
       // Prepare frustum for picking framebuffer
+      // Current viewing frustum:
       const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
       const top = Math.tan(fovY * 0.5) * near;
       const bottom = -top;
@@ -351,19 +351,21 @@ class Scene {
       const width = Math.abs(right - left);
       const height = Math.abs(top - bottom);
 
+      // One pixel viewing frustum:
       const pixelXRatio = this.mouseX / this.gl.canvas.clientWidth; // How far along it is relative to width. Range: 0->1.
       const pixelYRatio = 1 - (this.mouseY + 1) / this.gl.canvas.clientHeight;
       const onePixelXRatio = 1 / this.gl.canvas.clientWidth;
       const onePixelYRatio = 1 / this.gl.canvas.clientHeight;
 
-      const pixelLeft = left + pixelXRatio * width;
-      const pixelRight = bottom + pixelYRatio * height;
+      const leftOfPixel = left + pixelXRatio * width;
+      const bottomOfPixel = bottom + pixelYRatio * height;
 
+      // Set up picking viewProjectionMatrix
       const pickingProjectionMatrix = m4.frustum(
-        pixelLeft,
-        pixelLeft + width*onePixelXRatio,
-        pixelRight,
-        pixelRight + height*onePixelYRatio,
+        leftOfPixel,
+        leftOfPixel + width*onePixelXRatio,
+        bottomOfPixel,
+        bottomOfPixel + height*onePixelYRatio,
         near,
         far,
       );
@@ -381,8 +383,10 @@ class Scene {
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
       this.gl.useProgram(pickingProgram);
-      for (const model of this.models) {
-        if (model.type === "card" && model.player && model.player.mainPlayer) {
+      for (const card of this.cards) {
+        if (card.player.mainPlayer) {
+          const model = card.model;
+
           if (model.w.vao !== previousVao) {
             this.gl.bindVertexArray(model.w.vao);
             previousVao = model.w.vao;
@@ -393,10 +397,10 @@ class Scene {
           this.gl.uniformMatrix4fv(pickingWorldMatrixUniformLocation, false, worldMatrix);
           this.gl.uniformMatrix4fv(pickingViewProjectionMatrixUniformLocation, false, pickingViewProjectionMatrix);
           this.gl.uniform4fv(pickingIdUniformLocation, [
-            ((model.id >> 0) & 255) / 255, // bits 0-7
-            ((model.id >> 8) & 255) / 255, // bits 8-15
-            ((model.id >> 16) & 255) / 255, // bits 16-23
-            ((model.id >> 24) & 255) / 255, // bits 24-31
+            ((card.id >> 0) & 255) / 255, // bits 0-7
+            ((card.id >> 8) & 255) / 255, // bits 8-15
+            ((card.id >> 16) & 255) / 255, // bits 16-23
+            ((card.id >> 24) & 255) / 255, // bits 24-31
           ]); // Expects values from 0->1
 
           let primitiveType = this.gl.TRIANGLES;
@@ -405,19 +409,26 @@ class Scene {
         }
       }
 
-      // Find id
+      // Calculate id
       const data = new Uint8Array(4);
-      this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, data); // Returns value 0->255
+      this.gl.readPixels(
+        0, // x = 0  as it is a one pixel viewing frustum
+        0, // y = 0 -^
+        1, // width
+        1, // height
+        this.gl.RGBA, // format
+        this.gl.UNSIGNED_BYTE, // type
+        data); // Returns value 0->255
       const oldId = this.currentId;
       this.currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
 
-      // Card hovered over has changed. Therefore, reverse up animation.
+      // Card hovered over has changed. Therefore, reverse "up" animation.
       if (this.currentId !== oldId && oldId !== 0) {
         const card = this.cards.find(val => val.id === oldId);
         card.reverseAnimation("up");
       }
 
-      // Card has been hovered over. Therefore, add up animation.
+      // Card has been hovered over. Therefore, start an "up" animation.
       if (this.currentId !== 0) {
         const card = this.cards.find(val => val.id === this.currentId);
         card.setAnimation(new Animation("up", 100));
@@ -430,7 +441,7 @@ class Scene {
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
 
-      // Prepare to draw to canvas p2
+      // Prepare to draw to canvas
       this.origin.updateWorldMatrix();
       this.resizeCanvas()
       this.gl.clearColor(0, 0, 0, 1);
@@ -471,7 +482,7 @@ class Scene {
         }
       }
 
-      requestAnimationFrame(draw);
+      if (this.active) requestAnimationFrame(draw);
     }
     requestAnimationFrame(draw);
   }
@@ -486,7 +497,6 @@ class Scene {
       this.gl.canvas.height = this.canvas.height;
     }
   }
-
 
   createShader(type, source) {
     const shader = this.gl.createShader(type);

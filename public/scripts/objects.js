@@ -53,13 +53,11 @@ class TRS {
   }
 }
 
-class Model extends Node {
-  constructor(type, geometryFile, textureFile, dimensions, atlasTexcoords=null, hasSource=true) { // override texcoords for card atlas
+class Model extends Node { // 3D Model
+  constructor(type, geometryFile, textureFile, atlasTexcoords=null, hasSource=true) { // override texcoords for card atlas
     super(hasSource);
-    this.type = type;
-    this.dimensions = dimensions; // 2 or 3
+    this.type = type; // e.g. "card", "player", etc.
     this.w = {}; // webgl data
-    this.id = 0; // Picking id
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -150,6 +148,7 @@ class Model extends Node {
     }
 
 
+    // Check which properties this model has (vertices, texcoords & normals)
     const firstFace = geometry.faces[0];
     if (firstFace.length === 2) geometry.hasTexcoords = true;
     else if (firstFace.length === 3) {
@@ -157,6 +156,7 @@ class Model extends Node {
       geometry.hasNormals = true;
     }
 
+    // Fill in buffers with face data
     for (const face of geometry.faces) {
       geometry.bufferData.push(...geometry.vertices[face[0]-1]);
       if (geometry.hasTexcoords) geometry.texcoordBufferData.push(...geometry.texcoords[face[1]-1]);
@@ -171,12 +171,12 @@ class Model extends Node {
 class Card {
   constructor(cardType) {
     this.type = cardType;
-    this.id = null;
+    this.id = null; // picking id
     this.player = null;
     this.animation = null;
-    this.location = null; //TODO
-    if (Card.texcoords[this.type]) this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
-    else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
+
+    const texcoords = Card.texcoords[this.type];
+    this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : Card.texcoords.blank, Card.texcoords.back]);
   }
 
   setAnimation(animation, force=false) {
@@ -215,7 +215,7 @@ class Card {
 class Player {
   constructor(cards, mainPlayer) {
     this.cards = cards;
-    this.model = new Model("player", "card.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
+    this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.position = [0, 0, 0];
 
