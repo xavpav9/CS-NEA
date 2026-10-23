@@ -105,6 +105,8 @@ class Scene {
       // card.model.source.translation = [0, -10, -10];
       card.id = this.idCount;
       card.model.id = this.idCount;
+      card.player = player;
+      card.model.player = player;
       this.addModel(card.model);
       this.idCount++;
     }
@@ -245,19 +247,26 @@ class Scene {
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, textureAttachmentPoint, this.gl.TEXTURE_2D, pickingTexture, level);
     this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, renderbufferAttachmentPoint, this.gl.RENDERBUFFER, pickingRenderbuffer);
 
+    let pickingWidth = 0;
+    let pickingHeight = 0;
     const resizePickingFramebuffer = (width, height) => {
-      this.gl.activeTexture(this.gl.TEXTURE0 + 0);
-      this.gl.bindTexture(this.gl.TEXTURE_2D, pickingTexture);
-      const level = 0;
-      const internalFormat = this.gl.RGBA;
-      const border = 0;
-      const srcFormat = this.gl.RGBA;
-      const srcType = this.gl.UNSIGNED_BYTE;
-      const image = null;
-      this.gl.texImage2D(this.gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, image);
+      if (width != pickingWidth || height !== pickingHeight) {
+        this.gl.activeTexture(this.gl.TEXTURE0 + 0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, pickingTexture);
+        const level = 0;
+        const internalFormat = this.gl.RGBA;
+        const border = 0;
+        const srcFormat = this.gl.RGBA;
+        const srcType = this.gl.UNSIGNED_BYTE;
+        const image = null;
+        this.gl.texImage2D(this.gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, image);
 
-      this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, pickingRenderbuffer);
-      this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16, width, height);
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, pickingRenderbuffer);
+        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16, width, height);
+
+        pickingWidth = width;
+        pickingHeight = height;
+      }
     }
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
@@ -265,6 +274,9 @@ class Scene {
     let then = 0;
     let dist = 0;
     let currentId = 0;
+    const fovY = Math.PI/3;
+    const near = 1;
+    const far = 10000;
 
     const draw = now =>  {
       const timeDelta = now - then;
@@ -276,7 +288,7 @@ class Scene {
       let cameraMatrix = m4.identity();
       const angleSeparation = Math.PI/28; // Separation of cards on circle around player.
       const cardDist = 18; // Radius of circle which cards lie on from the player.
-      const horizon = -1; // How far cards are below horizon.
+      const horizon = -2; // How far cards are below horizon.
       for (const player of this.players) {
         const playerCameraMatrix = m4.lookAt(player.position, [0, 0, 0])
         player.model.localMatrix = playerCameraMatrix;
@@ -292,7 +304,7 @@ class Scene {
       }
 
       const viewMatrix = m4.inverse(cameraMatrix);
-      const projectionMatrix = m4.perspective(Math.PI / 3, this.gl.canvas.width/this.gl.canvas.height, 1, 10000);
+      const projectionMatrix = m4.perspective(fovY, this.gl.canvas.width/this.gl.canvas.height, near, far);
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
       // Update card model matrices
@@ -313,10 +325,39 @@ class Scene {
       let previousProgram = null;
       let previousVao = null;
 
+      // Prepare frustum for picking framebuffer
+      const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
+      const top = Math.tan(fovY * 0.5) * near;
+      const bottom = -top;
+      const right = aspect * top;
+      const left = -right;
+      const width = Math.abs(right - left);
+      const height = Math.abs(top - bottom);
+
+      const pixelXRatio = this.mouseX / this.gl.canvas.clientWidth; // How far along it is relative to width. Range: 0->1.
+      const pixelYRatio = 1 - (this.mouseY + 1) / this.gl.canvas.clientHeight;
+      const onePixelXRatio = 1 / this.gl.canvas.clientWidth;
+      const onePixelYRatio = 1 / this.gl.canvas.clientHeight;
+
+      const pixelLeft = left + pixelXRatio * width;
+      const pixelRight = bottom + pixelYRatio * height;
+
+      const pickingProjectionMatrix = m4.frustum(
+        pixelLeft,
+        pixelLeft + width*onePixelXRatio,
+        pixelRight,
+        pixelRight + height*onePixelYRatio,
+        near,
+        far,
+      );
+      const pickingViewProjectionMatrix = m4.multiply(pickingProjectionMatrix, viewMatrix);
+
+
       // Draw cards to picking framebuffer
       resizePickingFramebuffer(this.gl.canvas.width, this.gl.canvas.height);
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, pickingFramebuffer);
 
+      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       this.gl.enable(this.gl.CULL_FACE);
       this.gl.cullFace(this.gl.BACK);
       this.gl.enable(this.gl.DEPTH_TEST);
@@ -325,14 +366,14 @@ class Scene {
 
       this.gl.useProgram(pickingProgram);
       for (const model of this.models) {
-        if (model.type === "card") {
+        if (model.type === "card" && model.player && model.player.mainPlayer) {
           if (model.w.vao !== previousVao) {
             this.gl.bindVertexArray(model.w.vao);
             previousVao = model.w.vao;
           }
 
           const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
-          const worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
+          const worldViewProjectionMatrix = m4.multiply(pickingViewProjectionMatrix, worldMatrix);
 
           this.gl.uniformMatrix4fv(pickingMatrixUniformLocation, false, worldViewProjectionMatrix);
           this.gl.uniform4fv(pickingIdUniformLocation, [
@@ -349,11 +390,8 @@ class Scene {
       }
 
       // Find id
-      const pixelX = this.gl.canvas.width * (this.mouseX / this.gl.canvas.clientWidth);
-      const pixelY = this.gl.canvas.height - this.gl.canvas.height * (this.mouseY / this.gl.canvas.clientHeight) - 1;
-
       const data = new Uint8Array(4);
-      this.gl.readPixels(pixelX, pixelY, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, data); // Returns value 0->255
+      this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, data); // Returns value 0->255
       currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
 
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
@@ -366,6 +404,7 @@ class Scene {
       this.resizeCanvas()
       this.gl.clearColor(0, 0, 0, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
 
       // Draw models to canvas
       for (const model of this.models) {
@@ -408,12 +447,13 @@ class Scene {
 
   resizeCanvas() {
     const style = getComputedStyle(this.canvas);
-    this.canvas.width = parseInt(style.width);
-    this.canvas.height = parseInt(style.height);
+    if (this.gl.canvas.width !== this.canvas.width || this.gl.canvas.height !== this.canvas.height || this.canvas.width !== parseInt(style.width) || this.canvas.height !== parseInt(style.height)) {
+      this.canvas.width = parseInt(style.width);
+      this.canvas.height = parseInt(style.height);
 
-    this.gl.canvas.width = this.canvas.width;
-    this.gl.canvas.height = this.canvas.height;
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+      this.gl.canvas.width = this.canvas.width;
+      this.gl.canvas.height = this.canvas.height;
+    }
   }
 
 

@@ -172,6 +172,7 @@ class Card {
   constructor(cardType) {
     this.type = cardType;
     this.id = null;
+    this.player = null;
     this.location = null; //TODO
     if (Card.texcoords[this.type]) this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
     else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);

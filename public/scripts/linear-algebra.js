@@ -198,8 +198,8 @@ const m4 = (function() {
     return transpose(newM);
   }
 
-  function perspective(fov, aspect, near, far) {
-    const f = Math.tan((Math.PI - fov) >> 1); // Equivalent to 1 / tan(fov >> 1)
+  function perspective(fovY, aspect, near, far) {
+    const f = Math.tan((Math.PI - fovY) *.5); // Equivalent to 1 / tan(fovY *.5)
     const rInv = 1 / (near - far);
 
     return [
@@ -209,6 +209,28 @@ const m4 = (function() {
       0, 0, 2 * near * far * rInv, 0,
     ];
   }
+
+  function frustum(left, right, bottom, top, near, far) {
+    // Creates a frustum where user sits at (0, 0, 0);
+    return [
+      2*near/(right-left), 0, 0, 0,
+      0, 2*near/(top-bottom), 0, 0,
+      (left + right)/(right-left), (top+bottom)/(top-bottom), (far+near)/(near-far), -1,
+      0, 0, 2*near*far/(near-far), 0,
+    ];
+  }
+
+  /*
+  function frustumCentred(left, right, bottom, top, near, far) {
+    // Creates a frustum where user sits at (0, 0, 0), but also moves frustum such that the z-axis goes through the centre of the near-plane.
+    return [
+      2*near/(right-left), 0, 0, 0,
+      0, 2*near/(top-bottom), 0, 0,
+      0, 0, -(far+near)/(far-near), -1,
+      -near*(right+left)/(right-left), -near*(top+bottom)/(top-bottom), 2*far*near/(near-far), 0,
+    ];
+  }
+  */
 
   function transpose(m) {
     return [
@@ -300,6 +322,7 @@ const m4 = (function() {
     multiply,
     inverse,
     perspective,
+    frustum,
     transpose,
     lookAt,
 

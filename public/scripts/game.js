@@ -20,6 +20,4 @@ scene.addPlayer(player1);
 scene.addPlayer(player2);
 scene.addPlayer(player3);
 scene.addPlayer(player4);
-/*
-scene.addPlayer(player5);
-*/
+// scene.addPlayer(player5);
