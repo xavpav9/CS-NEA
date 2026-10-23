@@ -178,7 +178,7 @@ class Card {
     else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
   }
 
-  static geometryFile = "card2.obj";
+  static geometryFile = "card.obj";
   static textureFile = "card-atlas.png";
   static texcoords = {
     "blank": [[0, 0], [0, 0]],
@@ -190,7 +190,7 @@ class Card {
 class Player {
   constructor(cards, mainPlayer) {
     this.cards = cards;
-    this.model = new Model("player", "card2.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
+    this.model = new Model("player", "card.obj", "card-atlas.png", 3, null, false); // TODO: Replace placeholer arguments.
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.position = [0, 0, 0];
 

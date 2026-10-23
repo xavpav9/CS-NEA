@@ -179,8 +179,8 @@ class Scene {
 
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
 
       mipLevel = 0;
       internalFormat = this.gl.RGBA;
@@ -193,7 +193,8 @@ class Scene {
     }
 
 
-    const matrixUniformLocation = this.gl.getUniformLocation(model.w.program, "u_matrix");
+    const worldMatrixUniformLocation = this.gl.getUniformLocation(model.w.program, "u_world");
+    const viewProjectionMatrixUniformLocation = this.gl.getUniformLocation(model.w.program, "u_viewProjection");
     const positionAttribLocation = this.gl.getAttribLocation(model.w.program, "a_position");
 
     model.w.buffer = this.gl.createBuffer();
@@ -208,8 +209,9 @@ class Scene {
     offset = 0;
     this.gl.vertexAttribPointer(positionAttribLocation, size, type, normalise, stride, offset);
 
-    model.w.uniforms.matrix = m4.yawRotation(Math.PI); // y is opposite way around for models
-    model.w.uniformLocations.matrix = matrixUniformLocation;
+    model.w.uniforms.worldMatrix = m4.yawRotation(Math.PI); // y is opposite way around for models
+    model.w.uniformLocations.world = worldMatrixUniformLocation;
+    model.w.uniformLocations.viewProjection = viewProjectionMatrixUniformLocation;
 
     this.models.push(model);
   }
@@ -225,7 +227,8 @@ class Scene {
 
     // Picking framebuffer
 
-    const pickingMatrixUniformLocation = this.gl.getUniformLocation(pickingProgram, "u_matrix");
+    const pickingWorldMatrixUniformLocation = this.gl.getUniformLocation(pickingProgram, "u_world");
+    const pickingViewProjectionMatrixUniformLocation = this.gl.getUniformLocation(pickingProgram, "u_viewProjection");
     const pickingIdUniformLocation = this.gl.getUniformLocation(pickingProgram, "u_id");
     
     const pickingTexture = this.gl.createTexture();
@@ -247,27 +250,19 @@ class Scene {
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, textureAttachmentPoint, this.gl.TEXTURE_2D, pickingTexture, level);
     this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, renderbufferAttachmentPoint, this.gl.RENDERBUFFER, pickingRenderbuffer);
 
-    let pickingWidth = 0;
-    let pickingHeight = 0;
-    const resizePickingFramebuffer = (width, height) => {
-      if (width != pickingWidth || height !== pickingHeight) {
-        this.gl.activeTexture(this.gl.TEXTURE0 + 0);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, pickingTexture);
-        const level = 0;
-        const internalFormat = this.gl.RGBA;
-        const border = 0;
-        const srcFormat = this.gl.RGBA;
-        const srcType = this.gl.UNSIGNED_BYTE;
-        const image = null;
-        this.gl.texImage2D(this.gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, image);
+    this.gl.activeTexture(this.gl.TEXTURE0 + 0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, pickingTexture);
+    const internalFormat = this.gl.RGBA;
+    const width = 1;
+    const height = 1;
+    const border = 0;
+    const srcFormat = this.gl.RGBA;
+    const srcType = this.gl.UNSIGNED_BYTE;
+    const image = null;
+    this.gl.texImage2D(this.gl.TEXTURE_2D, level, internalFormat, width, height, border, srcFormat, srcType, image);
 
-        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, pickingRenderbuffer);
-        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16, width, height);
-
-        pickingWidth = width;
-        pickingHeight = height;
-      }
-    }
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, pickingRenderbuffer);
+    this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16, width, height);
 
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
@@ -308,6 +303,7 @@ class Scene {
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
       // Update card model matrices
+      this.canvas.style.cursor = "default";
       for (const model of this.models) {
         if (model.type === "card") {
           model.source.translation[1] = horizon;
@@ -315,6 +311,7 @@ class Scene {
           model.source.rotation = [Math.acos(-horizon/cardDist), 0, -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32];
 
           if (model.id == currentId) {
+            this.canvas.style.cursor = "pointer";
             model.source.translation[1] += 1;
           }
         }
@@ -354,10 +351,9 @@ class Scene {
 
 
       // Draw cards to picking framebuffer
-      resizePickingFramebuffer(this.gl.canvas.width, this.gl.canvas.height);
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, pickingFramebuffer);
 
-      this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+      this.gl.viewport(0, 0, 1, 1);
       this.gl.enable(this.gl.CULL_FACE);
       this.gl.cullFace(this.gl.BACK);
       this.gl.enable(this.gl.DEPTH_TEST);
@@ -372,10 +368,10 @@ class Scene {
             previousVao = model.w.vao;
           }
 
-          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
-          const worldViewProjectionMatrix = m4.multiply(pickingViewProjectionMatrix, worldMatrix);
+          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.worldMatrix);
 
-          this.gl.uniformMatrix4fv(pickingMatrixUniformLocation, false, worldViewProjectionMatrix);
+          this.gl.uniformMatrix4fv(pickingWorldMatrixUniformLocation, false, worldMatrix);
+          this.gl.uniformMatrix4fv(pickingViewProjectionMatrixUniformLocation, false, pickingViewProjectionMatrix);
           this.gl.uniform4fv(pickingIdUniformLocation, [
             ((model.id >> 0) & 255) / 255, // bits 0-7
             ((model.id >> 8) & 255) / 255, // bits 8-15
@@ -395,8 +391,6 @@ class Scene {
       currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
 
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-
-
 
 
       // Prepare to draw to canvas p2
@@ -423,10 +417,10 @@ class Scene {
           }
 
 
-          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.matrix);
-          const worldViewProjectionMatrix = m4.multiply(viewProjectionMatrix, worldMatrix);
+          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.worldMatrix);
 
-          this.gl.uniformMatrix4fv(model.w.uniformLocations.matrix, false, worldViewProjectionMatrix);
+          this.gl.uniformMatrix4fv(model.w.uniformLocations.viewProjection, false, viewProjectionMatrix);
+          this.gl.uniformMatrix4fv(model.w.uniformLocations.world, false, worldMatrix);
 
           if (model.w.textureUnit !== undefined) {
             this.gl.uniform1i(model.w.uniformLocations.image, model.w.textureUnit);
