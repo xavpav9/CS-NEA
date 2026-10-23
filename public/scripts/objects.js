@@ -173,9 +173,34 @@ class Card {
     this.type = cardType;
     this.id = null;
     this.player = null;
+    this.animation = null;
     this.location = null; //TODO
     if (Card.texcoords[this.type]) this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords[this.type], Card.texcoords.back]);
     else this.model = new Model("card", Card.geometryFile, Card.textureFile, 3, [Card.texcoords.blank, Card.texcoords.back]);
+  }
+
+  setAnimation(animation, force=false) {
+    if (animation === null) {
+      this.animation = null;
+    } else if (force || this.animation === null || animation.priority > this.animation.priority) {
+      this.animation = animation;
+    }
+  }
+
+  animate() {
+    if (this.animation !== null) {
+      this.animation.update(this);
+    }
+  }
+
+  reverseAnimation(...types) {
+    if (this.animation && types.includes(this.animation.type)) {
+      this.animation.reverse();
+    }
+  }
+
+  getAnimationType() {
+    return (this.animation) ? this.animation.type : null;
   }
 
   static geometryFile = "card.obj";
@@ -205,12 +230,42 @@ class Player {
    */
 }
 
-class AnimationState { // Information about an animation currently taking place.
-  constructor(type, time) {
-    this.maxTime = time;
-    this.start = Date.now();
+class Animation { // Information about an animation currently taking place.
+  constructor(type, time, currentTime=0) { // time/ms
     // type could be changing a game state, placing a card, declaring the winner etc.
+    this.reversed = false;
+    this.type = type;
+    this.maxTime = time;
+    this.start = Date.now() - currentTime;
+    this.priority = Animation.priorityScale[type]; // Higher = more priority (1+);
+  }
+
+  static priorityScale = {
+    up: 1,
+    upstick: 2,
+  }
+
+  reverse() {
+    this.reversed = !this.reversed;
+    const timeElapsed = Math.min(this.maxTime, Date.now() - this.start)
+    this.start = Date.now() - (this.maxTime - timeElapsed);
+  }
+
+  update(object) {
+    const timeFraction = (this.maxTime > 0) ? Math.min(this.maxTime, Date.now() - this.start) / this.maxTime : 1;
+    const multiplier = (this.reversed) ? 1 - timeFraction : timeFraction;
+
+    switch (this.type) {
+      case "up":
+      case "upstick":
+        object.model.source.translation = [0, 1, 0].map(val => val * multiplier);
+        break;
+    }
+
+    if (timeFraction === 1) { // Reached end of animation.
+      if (this.reversed) object.setAnimation(null); // 1. Cancels animation when back in original place
+    };
   }
 }
 
-export {Model, Card, Player, AnimationState, Node, TRS};
+export {Model, Card, Player, Animation, Node, TRS};

@@ -1,5 +1,5 @@
 import {m3, m4, v3} from "./linear-algebra.js";
-import {Node} from "./objects.js";
+import {Node, Animation} from "./objects.js";
 
 class Scene {
   constructor(canvas) {
@@ -7,13 +7,14 @@ class Scene {
     this.gl = this.canvas.getContext("webgl2");
     this.players = [];
     this.models = [];
+    this.cards = [];
     this.gameState = 0;
-    this.animations = [];
     this.textureCount = 1; // 0 is the picking texture
     this.textures = [null];
     this.cameraPosition = [0, 30, 50];
     this.origin = new Node(); // Root node of scene graph
     this.idCount = 1; // picking id
+    this.currentId = 0; // Current thing being picked (0 = nothing)
 
     this.mouseX = -1;
     this.mouseY = -1;
@@ -22,6 +23,19 @@ class Scene {
       const rect = this.canvas.getBoundingClientRect();
       this.mouseX = evt.clientX - rect.left;
       this.mouseY = evt.clientY - rect.top;
+    });
+
+    this.gl.canvas.addEventListener("click", evt => {
+      if (evt.button === 0 && this.currentId !== 0) {
+        const card = this.cards.find(val => val.id === this.currentId);
+
+        if (card.getAnimationType() === "up") {
+          card.setAnimation(new Animation("upstick", 0));
+        } else {
+          card.setAnimation(new Animation("up", 100, 100), true);
+        }
+        // do something
+      }
     });
 
     this.programs = (async () => {
@@ -107,6 +121,8 @@ class Scene {
       card.model.id = this.idCount;
       card.player = player;
       card.model.player = player;
+
+      this.cards.push(card);
       this.addModel(card.model);
       this.idCount++;
     }
@@ -268,7 +284,6 @@ class Scene {
 
     let then = 0;
     let dist = 0;
-    let currentId = 0;
     const fovY = Math.PI/3;
     const near = 1;
     const far = 10000;
@@ -278,6 +293,15 @@ class Scene {
       then = now;
 
       dist += timeDelta * 0.0001;
+
+      // Reset TRS and Handle animations
+      for (const card of this.cards) {
+        card.model.source.translation = [0, 0, 0];
+        card.model.source.rotation = [0, 0, 0];
+        card.model.source.scale = [1, 1, 1];
+
+        card.animate();
+      }
 
       // Set up viewProjectionMatrix and player source matrices
       let cameraMatrix = m4.identity();
@@ -292,8 +316,8 @@ class Scene {
         const numOfCards = player.cards.length;
         let count = 0;
         for (const card of player.cards) {
-          card.model.source.translation[0] = cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
-          card.model.source.translation[2] = -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
+          card.model.source.translation[0] += cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
+          card.model.source.translation[2] += -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
           count++;
         }
       }
@@ -303,18 +327,14 @@ class Scene {
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
       // Update card model matrices
-      this.canvas.style.cursor = "default";
-      for (const model of this.models) {
-        if (model.type === "card") {
-          model.source.translation[1] = horizon;
-          // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
-          model.source.rotation = [Math.acos(-horizon/cardDist), 0, -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32];
+      for (const card of this.cards) {
+        const model = card.model;
 
-          if (model.id == currentId) {
-            this.canvas.style.cursor = "pointer";
-            model.source.translation[1] += 1;
-          }
-        }
+        model.source.translation[1] += horizon;
+        // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
+        model.source.rotation[0] += Math.acos(-horizon/cardDist)
+        model.source.rotation[1] += 0
+        model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32;
       }
 
 
@@ -388,7 +408,24 @@ class Scene {
       // Find id
       const data = new Uint8Array(4);
       this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, data); // Returns value 0->255
-      currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
+      const oldId = this.currentId;
+      this.currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
+
+      // Card hovered over has changed. Therefore, reverse up animation.
+      if (this.currentId !== oldId && oldId !== 0) {
+        const card = this.cards.find(val => val.id === oldId);
+        card.reverseAnimation("up");
+      }
+
+      // Card has been hovered over. Therefore, add up animation.
+      if (this.currentId !== 0) {
+        const card = this.cards.find(val => val.id === this.currentId);
+        card.setAnimation(new Animation("up", 100));
+
+        this.canvas.style.cursor = "pointer";
+      } else {
+        this.canvas.style.cursor = "default";
+      }
 
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
