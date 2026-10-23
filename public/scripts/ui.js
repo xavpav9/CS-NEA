@@ -11,7 +11,7 @@ class Scene {
     this.animations = [];
     this.textureCount = 0;
     this.textures = [];
-    this.cameraPosition = [0, 20, 40];
+    this.cameraPosition = [0, 30, 50];
     this.origin = new Node();
 
     this.programs = (async () => {
@@ -202,10 +202,21 @@ class Scene {
 
       // Set up viewProjectionMatrix and player source matrices
       let cameraMatrix = m4.identity();
+      const angleSeparation = Math.PI/28; // Separation of cards on circle around player.
+      const cardDist = 18; // Radius of circle which cards lie on from the player.
+      const horizon = -1; // How far cards are below horizon.
       for (const player of this.players) {
         const playerCameraMatrix = m4.lookAt(player.position, [0, 0, 0])
         player.model.localMatrix = playerCameraMatrix;
         if (player.mainPlayer) cameraMatrix = playerCameraMatrix;
+
+        const numOfCards = player.cards.length;
+        let count = 0;
+        for (const card of player.cards) {
+          card.model.source.translation[0] = cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
+          card.model.source.translation[2] = -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
+          count++;
+        }
       }
 
       const viewMatrix = m4.inverse(cameraMatrix);
@@ -215,8 +226,9 @@ class Scene {
       // Update card model matrices
       for (const model of this.models) {
         if (model.type === "card") {
-          model.source.translation = [0, -5, -15];
-          model.source.rotation = [Math.PI/2, 0, dist*10];
+          model.source.translation[1] = horizon;
+          // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
+          model.source.rotation = [Math.acos(-horizon/cardDist), 0, -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32];
         }
       }
 
