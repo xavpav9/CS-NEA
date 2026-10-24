@@ -9,6 +9,7 @@ class Scene {
     this.gl = this.canvas.getContext("webgl2");
     this.players = []; // Players in game
     this.docs = []; // Decks of cards in game
+    this.tricks = [];
     this.models = []; // Models to render
     this.playerCards = []; // Cards in player hands
     this.docCards = []; // Cards in a deck
@@ -112,25 +113,32 @@ class Scene {
 
       for (let i=((start + 1)%playerCount); i!=start; i=(i+1)%playerCount) {
         // Multiply position by rotation matrix
-        const matrix = m4.pitchRotation(2 * count * Math.PI / playerCount);
+        const angle = 2 * count * Math.PI / playerCount
+        const matrix = m4.pitchRotation(angle);
         const position = this.cameraPosition.concat(0).map((val, inx, arr) => {
           return arr.reduce((acc, cur, row) => {
             return acc + cur * matrix[inx + row * 4];
           }, 0);
         }).slice(0, 3);
         this.players[i].position = position;
+        this.players[i].angle = angle;
         count++;
       }
     }
 
     player.cards.forEach(card => this.addCard(card, player, null));
+    player.tricks.forEach(trick => this.addDoc(trick, player));
   }
 
-  async addDoc(doc) {
-    this.docs.push(doc);
-    doc.model.setParent(this.origin);
+  async addDoc(doc, player=null) {
+    if (doc.type === "trick") {
+      this.tricks.push(doc);
+    } else {
+      this.docs.push(doc);
+    }
 
-    doc.cards.forEach(card => this.addCard(card, null, doc));
+    doc.model.setParent(this.origin);
+    doc.cards.forEach(card => this.addCard(card, player, doc));
   }
 
   async addCard(card, player, doc) {
@@ -138,7 +146,7 @@ class Scene {
     card.player = player;
     card.doc = doc;
 
-    if (player) this.playerCards.push(card);
+    if (player && !doc) this.playerCards.push(card);
     if (doc) this.docCards.push(card);
 
     this.addModel(card.model);
@@ -263,6 +271,14 @@ class Scene {
     return cards;
   }
 
+  getAllDocs() {
+    const docs = [];
+    for (const doc of this.docs.concat(this.tricks)) {
+      if (!docs.includes(doc)) docs.push(doc);
+    }
+    return docs;
+  }
+
   async render() {
     if (this.gl === null) return null;
 
@@ -325,11 +341,12 @@ class Scene {
 
       // Reset TRS and Handle animations
       for (const card of this.getAllCards()) {
-        card.model.source.translation = [0, 0, 0];
-        card.model.source.rotation = [0, 0, 0];
-        card.model.source.scale = [1, 1, 1];
-
+        card.model.source.reset();
         card.animate();
+      }
+
+      for (const doc of this.getAllDocs()) {
+        doc.model.source.reset();
       }
 
       // Set up cameraMatrix and card translations
@@ -352,6 +369,48 @@ class Scene {
           model.source.translation[2] += -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
           count++;
         }
+
+        // Set up tricks in front of players (on table)
+        const numOfTricks = player.tricks.length;
+        const columnSeparation = 0.3;
+        const rowSeparation = 0.4;
+        const tricksPerRow = 4;
+
+        const x = player.position[0] * 0.4;
+        const z = player.position[2] * 0.4;
+
+        count = 0;
+        for (const trick of player.tricks) {
+
+          // Tricks are arranged in a grid. These are there relative placements in this grid.
+          const columnOffset = columnSeparation * (count % tricksPerRow - (tricksPerRow-1)/2);
+          const rowOffset = rowSeparation * (Math.floor(count / tricksPerRow));
+
+          const currentX = x * (1 + rowOffset);
+          const currentZ = z * (1 + rowOffset);
+
+          // Placing tricks on the normal of the line (0, 0) to (z, x);
+          trick.model.source.translation[0] += currentX + z * columnOffset;
+          trick.model.source.translation[2] += currentZ + -x * columnOffset;
+
+
+          let trickCardCount = 0;
+          for (const card of trick.cards) {
+            const model = card.model;
+
+            model.source.rotation[0] += Math.PI; // Facedown
+            model.source.rotation[1] += -player.angle // Pitch In line with player view
+            model.source.translation[1] += 0.025 + 0.05 * trickCardCount; // 0.05 = depth of card
+
+            // Variations in card placement
+            model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
+            model.source.translation[0] += card.randomness * 0.5
+            model.source.translation[2] += card.randomness * 0.5
+
+            trickCardCount++;
+          }
+          count++;
+        }
       }
 
       // Set up viewProjectionMatrix
@@ -369,12 +428,20 @@ class Scene {
       }
 
       let docCardCount = 0;
-      for (const card of this.docCards) {
-        const model = card.model;
+      for (const doc of this.docs) {
+        for (const card of doc.cards) {
+          const model = card.model;
 
-        model.source.rotation[0] += Math.PI // roll
-        model.source.translation[1] += 0.025 + 0.05 * docCardCount; // 0.05 = depth of card
-        docCardCount++;
+          model.source.rotation[0] += Math.PI // Facedown
+          model.source.translation[1] += 0.025 + 0.05 * docCardCount; // 0.05 = depth of card
+
+          // Variations in card placement
+          model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
+          model.source.translation[0] += card.randomness * .5
+          model.source.translation[2] += card.randomness * .5
+
+          docCardCount++;
+        }
       }
 
       // gl.useProgram/gl.bindVertexArray is not necessary when it is already in use.

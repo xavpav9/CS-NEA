@@ -51,6 +51,12 @@ class TRS {
     matrix = m4.roll(matrix, this.rotation[0]);
     return m4.translate(matrix, ...this.translation);
   }
+
+  reset() {
+    this.translation = [0, 0, 0];
+    this.rotation = [0, 0, 0];
+    this.scaling = [1, 1, 1];
+  }
 }
 
 class Model extends Node { // 3D Model
@@ -176,6 +182,7 @@ class Card {
     this.player = null;
     this.doc = null;
     this.animation = null;
+    this.randomness = Math.random(); // A constant random number for variation in card placement
 
     const texcoords = Card.texcoords[this.type];
     this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : Card.texcoords.blank, Card.texcoords.back]);
@@ -226,21 +233,22 @@ class DOC { // Deck of Cards
   constructor(type, cards=[]) {
     this.type = type; // discard or pickup or trick
     this.cards = cards;
-    this.model = new Model("doc", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
+    this.model = new Model("doc", "card.obj", "card-atlas.png"); // TODO: Replace placeholer arguments.
 
     for (const card of this.cards) {
       card.model.setParent(this.model);
     }
-
   }
 }
 
 class Player {
-  constructor(cards, mainPlayer) {
+  constructor(cards, tricks, mainPlayer) {
     this.cards = cards;
+    this.tricks = tricks;
     this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
-    this.position = [0, 0, 0];
+    this.position = [0, 0, 0]; // Position in world
+    this.angle = 0; // Angle around table
 
     for (const card of this.cards) {
       card.model.setParent(this.model);
