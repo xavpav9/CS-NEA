@@ -1,16 +1,20 @@
 import {m3, m4, v3} from "./linear-algebra.js";
 import {Node, Animation} from "./objects.js";
 
+const UP_ANIMATION_TIME = 200;
+
 class Scene {
   constructor(canvas) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext("webgl2");
     this.players = []; // Players in game
+    this.docs = []; // Decks of cards in game
     this.models = []; // Models to render
-    this.cards = []; // Cards in play
+    this.playerCards = []; // Cards in player hands
+    this.docCards = []; // Cards in a deck
     this.textureCount = 1; // 0 is the picking texture
     this.textures = [null]; // Cache of textures
-    this.cameraPosition = [0, 30, 50];
+    this.cameraPosition = [0, 20, 34];
     this.origin = new Node(); // Root node of scene graph
     this.idCount = 1; // Picking id
     this.currentId = 0; // Current thing being picked (0 = nothing)
@@ -27,13 +31,21 @@ class Scene {
 
     this.gl.canvas.addEventListener("click", evt => {
       if (evt.button === 0 && this.currentId !== 0) {
-        const card = this.cards.find(val => val.id === this.currentId);
+        const card = this.playerCards.find(val => val.id === this.currentId);
 
-        // Keep card in air when clicked.
+        // Keep card in air when clicked, and go down when clicked again.
         if (card.getAnimationType() === "up") {
+          // Max 3 cards up at once.
+          const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
+          upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
+          upCards.slice(2).forEach(card => {
+            card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+            card.reverseAnimation("up");
+          });
+
           card.setAnimation(new Animation("upstick", 0));
         } else {
-          card.setAnimation(new Animation("up", 100, 100), true);
+          card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
         }
       }
     });
@@ -111,14 +123,24 @@ class Scene {
       }
     }
 
-    player.cards.forEach(card => this.addCard(card, player));
+    player.cards.forEach(card => this.addCard(card, player, null));
   }
 
-  async addCard(card, player) {
+  async addDoc(doc) {
+    this.docs.push(doc);
+    doc.model.setParent(this.origin);
+
+    doc.cards.forEach(card => this.addCard(card, null, doc));
+  }
+
+  async addCard(card, player, doc) {
     card.id = this.idCount;
     card.player = player;
+    card.doc = doc;
 
-    this.cards.push(card);
+    if (player) this.playerCards.push(card);
+    if (doc) this.docCards.push(card);
+
     this.addModel(card.model);
     this.idCount++;
   }
@@ -226,10 +248,19 @@ class Scene {
     model.w.uniformLocations.viewProjection = viewProjectionMatrixUniformLocation;
 
     this.models.push(model);
+    model.ready = true;
   }
 
   removeModel(model) {
     if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
+  }
+
+  getAllCards() {
+    const cards = [];
+    for (const card of this.playerCards.concat(this.docCards)) {
+      if (!cards.includes(card)) cards.push(card);
+    }
+    return cards;
   }
 
   async render() {
@@ -282,7 +313,7 @@ class Scene {
 
     let then = 0;
     let dist = 0;
-    const fovY = Math.PI/3;
+    const fovY = 9*Math.PI/24;
     const near = 1;
     const far = 10000;
 
@@ -293,7 +324,7 @@ class Scene {
       dist += timeDelta * 0.0001;
 
       // Reset TRS and Handle animations
-      for (const card of this.cards) {
+      for (const card of this.getAllCards()) {
         card.model.source.translation = [0, 0, 0];
         card.model.source.rotation = [0, 0, 0];
         card.model.source.scale = [1, 1, 1];
@@ -303,11 +334,11 @@ class Scene {
 
       // Set up cameraMatrix and card translations
       let cameraMatrix = m4.identity();
-      const angleSeparation = Math.PI/28; // Separation of cards on circle around player.
-      const cardDist = 18; // Radius of circle which cards lie on from the player.
-      const dip = -2; // How far cards are below line-of-sight of player.
+      const angleSeparation = Math.PI/32; // Separation of cards on circle around player.
+      const cardDist = 20; // Radius of circle which cards lie on from the player.
+      const dip = -6; // How far cards are below line-of-sight of player.
       for (const player of this.players) {
-        const playerCameraMatrix = m4.lookAt(player.position, [0, 0, 0])
+        const playerCameraMatrix = m4.lookAt(player.position, [0, -2, 2])
         player.model.localMatrix = playerCameraMatrix;
         if (player.mainPlayer) cameraMatrix = playerCameraMatrix;
 
@@ -329,12 +360,21 @@ class Scene {
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
       // Update card source matrices
-      for (const card of this.cards) {
+      for (const card of this.playerCards) {
         const model = card.model;
 
         // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
         model.source.rotation[0] += Math.acos(-dip/cardDist) // roll
         model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32; // yaw
+      }
+
+      let docCardCount = 0;
+      for (const card of this.docCards) {
+        const model = card.model;
+
+        model.source.rotation[0] += Math.PI // roll
+        model.source.translation[1] += 0.025 + 0.05 * docCardCount; // 0.05 = depth of card
+        docCardCount++;
       }
 
       // gl.useProgram/gl.bindVertexArray is not necessary when it is already in use.
@@ -383,10 +423,9 @@ class Scene {
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
       this.gl.useProgram(pickingProgram);
-      for (const card of this.cards) {
-        if (card.player.mainPlayer) {
-          const model = card.model;
-
+      for (const card of this.playerCards) {
+        const model = card.model;
+        if (card.player.mainPlayer && model.ready) {
           if (model.w.vao !== previousVao) {
             this.gl.bindVertexArray(model.w.vao);
             previousVao = model.w.vao;
@@ -424,14 +463,14 @@ class Scene {
 
       // Card hovered over has changed. Therefore, reverse "up" animation.
       if (this.currentId !== oldId && oldId !== 0) {
-        const card = this.cards.find(val => val.id === oldId);
+        const card = this.playerCards.find(val => val.id === oldId);
         card.reverseAnimation("up");
       }
 
       // Card has been hovered over. Therefore, start an "up" animation.
       if (this.currentId !== 0) {
-        const card = this.cards.find(val => val.id === this.currentId);
-        card.setAnimation(new Animation("up", 100));
+        const card = this.playerCards.find(val => val.id === this.currentId);
+        card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
 
         this.canvas.style.cursor = "pointer";
       } else {

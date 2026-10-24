@@ -58,6 +58,7 @@ class Model extends Node { // 3D Model
     super(hasSource);
     this.type = type; // e.g. "card", "player", etc.
     this.w = {}; // webgl data
+    this.ready = false;
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -173,6 +174,7 @@ class Card {
     this.type = cardType;
     this.id = null; // picking id
     this.player = null;
+    this.doc = null;
     this.animation = null;
 
     const texcoords = Card.texcoords[this.type];
@@ -203,6 +205,10 @@ class Card {
     return (this.animation) ? this.animation.type : null;
   }
 
+  getAnimationStart() {
+    return (this.animation) ? this.animation.start : null;
+  }
+
   static geometryFile = "card.obj";
   static textureFile = "card-atlas.png";
   static texcoords = {
@@ -210,6 +216,19 @@ class Card {
     "6d": [[0, .5], [0, 1]],
     "back": [[.5, 1], [0, 1]],
   } // Plus a blank version for other player's cards.
+}
+
+class DOC { // Deck of Cards
+  constructor(type, cards=[]) {
+    this.type = type; // discard or pickup or trick
+    this.cards = cards;
+    this.model = new Model("doc", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
+
+    for (const card of this.cards) {
+      card.model.setParent(this.model);
+    }
+
+  }
 }
 
 class Player {
@@ -258,7 +277,7 @@ class Animation { // Information about an animation currently taking place.
     switch (this.type) {
       case "up":
       case "upstick":
-        object.model.source.translation = [0, 1, 0].map(val => val * multiplier);
+        object.model.source.translation = [0, 1, -0.25].map(val => val * multiplier);
         break;
     }
 
@@ -268,4 +287,4 @@ class Animation { // Information about an animation currently taking place.
   }
 }
 
-export {Model, Card, Player, Animation, Node, TRS};
+export {Model, Card, Player, Animation, Node, TRS, DOC};
