@@ -201,6 +201,10 @@ class Card {
     }
   }
 
+  isAnimationReversed() {
+    return (this.animation) ? this.animation.reversed : null;
+  }
+
   getAnimationType() {
     return (this.animation) ? this.animation.type : null;
   }

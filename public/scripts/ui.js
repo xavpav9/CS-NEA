@@ -1,7 +1,7 @@
 import {m3, m4, v3} from "./linear-algebra.js";
 import {Node, Animation} from "./objects.js";
 
-const UP_ANIMATION_TIME = 200;
+const UP_ANIMATION_TIME = 150;
 
 class Scene {
   constructor(canvas) {
@@ -461,14 +461,17 @@ class Scene {
       const oldId = this.currentId;
       this.currentId = data.reduce((acc, cur, inx) => acc + (cur << inx*8), 0);
 
-      // Card hovered over has changed. Therefore, reverse "up" animation.
-      if (this.currentId !== oldId && oldId !== 0) {
-        const card = this.playerCards.find(val => val.id === oldId);
-        card.reverseAnimation("up");
+      // Card hovered over has changed, so reverse "up" animation on new & old card (if they exist).
+      if (this.currentId !== oldId) {
+        const oldCard = this.playerCards.find(val => val.id === oldId);
+        const newCard = this.playerCards.find(val => val.id === this.currentId);
+
+        if (oldCard) oldCard.reverseAnimation("up");
+        if (newCard) newCard.reverseAnimation("up");
       }
 
-      // Card has been hovered over. Therefore, start an "up" animation.
-      if (this.currentId !== 0) {
+      // Card has been hovered on for at least two frames. Therefore, start an "up" animation.
+      if (this.currentId && this.currentId === oldId) {
         const card = this.playerCards.find(val => val.id === this.currentId);
         card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
 
