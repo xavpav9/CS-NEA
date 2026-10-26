@@ -1,5 +1,7 @@
 import {m4} from "./linear-algebra.js";
 
+let id = 0;
+
 class Node {
   constructor(hasSource=true) {
     this.localMatrix = m4.identity();
@@ -191,13 +193,16 @@ class Model extends Node { // 3D Model
 }
 
 class Card {
-  constructor(cardType) {
+  constructor(scene, cardType) {
+    this.scene = scene;
     this.type = cardType;
-    this.id = null; // picking id
     this.player = null;
     this.doc = null;
     this.animation = null;
     this.randomness = Math.random(); // A constant random number for variation in card placement
+
+    this.id = id; // picking id
+    id++;
 
     const texcoords = Card.texcoords[this.type];
     this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : Card.texcoords.blank, Card.texcoords.back]);
@@ -245,55 +250,104 @@ class Card {
 }
 
 class DOC { // Deck of Cards
-  constructor(type, cards=[]) {
-    this.type = type; // discard or pickup or trick
-    this.cards = cards;
-    this.model = new Model("doc", "card.obj", "card-atlas.png"); // TODO: Replace placeholer arguments.
+  constructor(scene, cards=[]) {
+    this.scene = scene;
+    // this.type = type; // discard or pickup or trick
+    this.cards = [];
+    this.model = new Model("doc", "card.obj", "card-atlas.png"); // TODO: Replace placeholder arguments.
+    this.player = null;
 
-    this.cards.forEach(card => this.setUpCard(card));
-  }
-
-  setUpCard(card) {
-    card.model.setParent(this.model);
+    cards.forEach(card => this.addCard(card));
   }
 
   addCard(card) {
+    card.doc = this;
     this.cards.push(card);
-    this.setUpCard(card);
+
+    this.scene.addDocCard(card);
+  }
+}
+
+class Pickup extends DOC {
+  constructor(scene, cards=[]) {
+    super(scene, cards);
+  }
+
+  popCard() {
+    if (this.cards.length) {
+      const card = this.cards.splice(this.cards.length-1, 1)[0];
+      this.scene.removeDocCard(card);
+
+      return card;
+    } else return false;
+  }
+  
+  dealCard(player) {
+    const card = this.popCard();
+    if (card) player.addCard(card);
+  }
+}
+
+class Trick extends DOC {
+  constructor(scene, cards=[]) {
+    super(scene, cards);
+  }
+}
+
+class Discard extends DOC {
+  constructor(scene, cards=[]) {
+    super(scene, cards);
   }
 }
 
 class Player {
-  constructor(cards, tricks, mainPlayer) {
-    this.cards = cards;
-    this.tricks = tricks;
-    this.discard = new DOC("discard"); // Discard pile for the player
-    this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
+  constructor(scene, mainPlayer) {
+    this.scene = scene;
+    this.cards = [];
+    this.tricks = [];
+    this.discard = new Discard(this.scene);
+
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
-    this.position = [0, 0, 0]; // Position in world
-    this.angle = 0; // Angle around table
     this.turn = false; // Whether it is this players current turn
 
-    for (const card of this.cards) {
-      card.model.setParent(this.model);
-    }
+    // Rendering attributes
+    this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholder arguments.
+    this.position = [0, 0, 0]; // Position in world
+    this.angle = 0; // Angle around table
+
+    // Set up player rendering
+    this.scene.addPlayer(this);
+
+    this.discard.player = this;
+    this.scene.addDiscard(this.discard);
+  }
+
+  addCard(card) {
+    card.player = this;
+    card.doc = null;
+
+    this.cards.push(card);
+    this.scene.addPlayerCard(card)
+  }
+
+  addTrick(trick) {
+    trick.player = this;
+    trick.cards.forEach(card => card.player = this);
+
+    this.tricks.push(trick);
+    this.scene.addTrick(trick);
   }
 
   setTurn(turn) {
     this.turn = turn;
   }
 
-  moveToDiscard(card) {
+  playCard(card) {
     this.cards.splice(this.cards.indexOf(card), 1);
     this.discard.addCard(card);
 
-    card.model.setParent(this.discard.model);
+    this.scene.playCard(card);
   }
-
-  /*
-   * Funcs:
-   * playCard(card || inx)
-   */
 }
 
 class Animation { // Information about an animation currently taking place.
@@ -340,4 +394,18 @@ class Animation { // Information about an animation currently taking place.
   }
 }
 
-export {Model, Card, Player, Animation, Node, TRS, DOC};
+export {
+  Model,
+  Card,
+  Player,
+
+  Animation,
+
+  Node,
+  TRS,
+
+  DOC,
+  Pickup,
+  Discard,
+  Trick,
+};

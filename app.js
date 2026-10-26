@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 
 import indexRouter from "./routes/index.js";
-import gameRouter from "./routes/game.js";
+import playRouter from "./routes/play.js";
 
 const PORT = /*process.env.PORT || */ 8080;
 
@@ -18,7 +18,7 @@ app.set("views", path.join(import.meta.dirname, "views"));
 app.set("view engine", "pug");
 
 app.use("/", indexRouter);
-app.use("/game", gameRouter);
+app.use("/play", playRouter);
 
 
 

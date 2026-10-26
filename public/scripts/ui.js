@@ -4,26 +4,28 @@ import {Node, Animation} from "./objects.js";
 const UP_ANIMATION_TIME = 150;
 
 class Scene {
-  constructor(canvas) {
+  constructor(canvas, game) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext("webgl2");
+    this.game = game; // The game using the scene. Required such that inputs can be delivered.
 
-    this.players = []; // Players in game
-    this.docs = []; // Decks of cards in game
-    this.tricks = []; // Tricks in game
-    this.discards = []; // Player discard piles
-    this.models = []; // Models to render
-    this.playerCards = []; // Cards in player hands
-    this.docCards = []; // Cards in a deck
+    this.players = [];
+    this.playerCards = [];
+
+    this.pickups = [];
+    this.tricks = [];
+    this.discards = [];
+    this.docCards = [];
+
+    this.models = [];
     this.textureCount = 1; // 0 is the picking texture
     this.textures = [null]; // Cache of textures
-    this.cameraPosition = [0, 20, 34];
 
+    this.cameraPosition = [0, 20, 34];
     this.origin = new Node(); // Root node of scene graph
-    this.idCount = 1; // Picking id
     this.currentId = 0; // Current thing being picked (0 = nothing)
     this.active = true; // Whether rendering or not
-    this.gameState = "idle"; // Part of game being played
+    this.pickupPile = null; // Pickup pile at centre
 
     this.mouseX = -1;
     this.mouseY = -1;
@@ -38,31 +40,7 @@ class Scene {
       if (evt.button === 0 && this.currentId !== 0) {
         const card = this.playerCards.find(val => val.id === this.currentId);
 
-        switch (this.gameState) {
-          case "idle":
-            break;
-          case "start": // Select 3 cards to give to an opponent
-
-            // Keep card in air when clicked, and go down when clicked again.
-            if (card.getAnimationType() === "up") {
-              // Max 3 cards up at once.
-              const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
-              upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
-              upCards.slice(2).forEach(card => {
-                card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
-                card.reverseAnimation("up");
-              });
-
-              card.setAnimation(new Animation("upstick", 0));
-            } else {
-              card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
-            }
-            break;
-          case "main":
-            this.playCard(card);
-            this.setGameState("idle");
-            break;
-        }
+        this.game.click(card);
       }
     });
 
@@ -113,25 +91,36 @@ class Scene {
    * changeGameState(number); // What the player should be doing (e.g. waiting, playing, selecting 3 cards, etc.)
    */
 
-  setGameState(state) {
-    this.gameState = state;
+  stateStart(card) {
+    // Keep card in air when clicked, and go down when clicked again.
+    if (card.getAnimationType() === "up") {
+      // Max 3 cards up at once.
+      const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
+      upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
+      upCards.slice(2).forEach(card => {
+        card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+        card.reverseAnimation("up");
+      });
+
+      card.setAnimation(new Animation("upstick", 0));
+    } else {
+      card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+    }
+
+    return this.playerCards.filter(card => card.getAnimationType() === "upstick");
   }
 
   playCard(card) {
-    if (card.player.turn) {
-      card.player.setTurn(false);
+    // Position of card relative to origin
+    const position = card.model.worldMatrix.slice(12,15);
 
-      // Position of card relative to origin
-      const position = card.model.worldMatrix.slice(12,15);
+    // Set origin of position to the discard model
+    for (let i=0; i<3; ++i) position[i] -= card.player.discard.model.source.translation[i];
 
-      // Set origin of position to the discard model.
-      for (let i=0; i<3; ++i) position[i] -= card.player.discard.model.source.translation[i];
+    this.playerCards.splice(this.playerCards.indexOf(card), 1);
 
-      this.moveToDiscard(card);
-
-      card.setAnimation(new Animation("play", 1000, 1000, position));
-      card.reverseAnimation("play");
-    }
+    card.setAnimation(new Animation("play", 1000, 1000, position));
+    card.reverseAnimation("play");
   }
 
   async addPlayer(player) {
@@ -161,41 +150,62 @@ class Scene {
         count++;
       }
     }
-
-
-    // Set up player cards and docs
-    player.cards.forEach(card => this.addCard(card, player, null));
-    player.tricks.forEach(trick => this.addDoc(trick, player));
-    this.addDoc(player.discard, player);
   }
 
-  async addDoc(doc, player=null) {
-    switch (doc.type) {
-      case "trick":
-        this.tricks.push(doc);
-        break;
-      case "discard":
-        this.discards.push(doc);
-        break;
-      default:
-        this.docs.push(doc);
+
+  async addTrick(trick, player) {
+    this.tricks.push(trick);
+
+    trick.model.setParent(this.origin);
+  }
+
+
+  async addDiscard(discard, player) {
+    this.discards.push(discard);
+
+    discard.model.setParent(this.origin);
+  }
+
+
+  async setPickup(pickup) {
+    this.pickupPile = pickup;
+    this.pickups.push(pickup);
+
+    pickup.model.setParent(this.origin);
+  }
+
+
+  async addPlayerCard(card) {
+    this.playerCards.push(card);
+
+    card.model.setParent(card.player.model);
+
+    if (!card.model.ready) {
+      this.addModel(card.model);
     }
-
-    doc.model.setParent(this.origin);
-    if (doc.type !== "discard") doc.cards.forEach(card => this.addCard(card, player, doc));
   }
 
-  async addCard(card, player, doc) {
-    card.id = this.idCount;
-    card.player = player;
-    card.doc = doc;
 
-    if (player && !doc) this.playerCards.push(card);
-    if (doc) this.docCards.push(card);
-
-    this.addModel(card.model);
-    this.idCount++;
+  removePlayerCard(card) {
+    if (this.playerCards.includes(card)) this.playerCards.splice(this.playerCards.indexOf(card), 1);
   }
+
+
+  async addDocCard(card) {
+    this.docCards.push(card);
+
+    card.model.setParent(card.doc.model);
+
+    if (!card.model.ready) {
+      this.addModel(card.model);
+    }
+  }
+
+
+  removeDocCard(card) {
+    if (this.docCards.includes(card)) this.docCards.splice(this.docCards.indexOf(card), 1);
+  }
+
 
   async addModel(model) { // 3D model
     let size, type, normalise, stride, offset;
@@ -303,15 +313,18 @@ class Scene {
     model.ready = true;
   }
 
-  moveToDiscard(card) {
-    card.player.moveToDiscard(card);
-    this.playerCards.splice(this.playerCards.indexOf(card), 1);
-    this.docCards.push(card);
+
+  dealCard(player) {
+    // const card = this.removeTopCard();
+
+    // this.addCard(card, player, null, false);
   }
+
 
   removeModel(model) {
     if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
   }
+
 
   getAllCards() {
     const cards = [];
@@ -323,7 +336,7 @@ class Scene {
 
   getAllDocs() {
     const docs = [];
-    for (const doc of this.docs.concat(this.tricks).concat(this.discards)) {
+    for (const doc of this.pickups.concat(this.tricks).concat(this.discards)) {
       if (!docs.includes(doc)) docs.push(doc);
     }
     return docs;
@@ -384,6 +397,7 @@ class Scene {
     const far = 10000;
 
     const draw = now =>  {
+      // console.log(this.models.length);
       const timeDelta = now - then;
       then = now;
 
@@ -487,7 +501,7 @@ class Scene {
       }
 
       let docCardCount = 0;
-      for (const doc of this.docs) {
+      for (const doc of this.pickups) {
         for (const card of doc.cards) {
           const model = card.model;
 
@@ -551,7 +565,7 @@ class Scene {
       this.gl.useProgram(pickingProgram);
       for (const card of this.playerCards) {
         const model = card.model;
-        if (card.player.mainPlayer && model.ready) {
+        if (model.ready && card.player.mainPlayer) {
           if (model.w.vao !== previousVao) {
             this.gl.bindVertexArray(model.w.vao);
             previousVao = model.w.vao;
@@ -618,7 +632,7 @@ class Scene {
 
       // Draw models to canvas
       for (const model of this.models) {
-        if (model.type === "card") {
+        if (model.ready && model.type === "card") {
           this.gl.enable(this.gl.CULL_FACE);
           this.gl.cullFace(this.gl.BACK);
           this.gl.enable(this.gl.DEPTH_TEST);
