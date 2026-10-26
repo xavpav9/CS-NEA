@@ -7,7 +7,16 @@ class Node {
     this.children = [];
     this.parentNode = null;
     this.hasSource = hasSource;
-    if (hasSource) this.source = new TRS();
+    if (hasSource) {
+      this.source = new TRS(); // This is where the source is updated
+      this.currentSource = new TRS(); // The last calculated source
+    }
+  }
+
+  copySource() {
+    if (this.hasSource) {
+      TRS.copySource(this.source, this.currentSource);
+    }
   }
 
   setParent(parentNode) {
@@ -56,6 +65,12 @@ class TRS {
     this.translation = [0, 0, 0];
     this.rotation = [0, 0, 0];
     this.scaling = [1, 1, 1];
+  }
+
+  static copySource(src, dest) {
+    dest.translation = src.translation;
+    dest.rotation = src.rotation;
+    dest.scaling = src.scaling;
   }
 }
 
@@ -235,9 +250,16 @@ class DOC { // Deck of Cards
     this.cards = cards;
     this.model = new Model("doc", "card.obj", "card-atlas.png"); // TODO: Replace placeholer arguments.
 
-    for (const card of this.cards) {
-      card.model.setParent(this.model);
-    }
+    this.cards.forEach(card => this.setUpCard(card));
+  }
+
+  setUpCard(card) {
+    card.model.setParent(this.model);
+  }
+
+  addCard(card) {
+    this.cards.push(card);
+    this.setUpCard(card);
   }
 }
 
@@ -245,14 +267,27 @@ class Player {
   constructor(cards, tricks, mainPlayer) {
     this.cards = cards;
     this.tricks = tricks;
+    this.discard = new DOC("discard"); // Discard pile for the player
     this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholer arguments.
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.position = [0, 0, 0]; // Position in world
     this.angle = 0; // Angle around table
+    this.turn = false; // Whether it is this players current turn
 
     for (const card of this.cards) {
       card.model.setParent(this.model);
     }
+  }
+
+  setTurn(turn) {
+    this.turn = turn;
+  }
+
+  moveToDiscard(card) {
+    this.cards.splice(this.cards.indexOf(card), 1);
+    this.discard.addCard(card);
+
+    card.model.setParent(this.discard.model);
   }
 
   /*
@@ -262,10 +297,12 @@ class Player {
 }
 
 class Animation { // Information about an animation currently taking place.
-  constructor(type, time, currentTime=0) { // time/ms
+  constructor(type, time, currentTime=0, customTranslation=[0,0,0]) { // time/ms
     // type could be changing a game state, placing a card, declaring the winner etc.
     this.reversed = false;
     this.type = type;
+    this.customTranslation = customTranslation;
+
     this.maxTime = time;
     this.start = Date.now() - currentTime;
     this.priority = Animation.priorityScale[type]; // Higher = more priority (1+);
@@ -274,6 +311,7 @@ class Animation { // Information about an animation currently taking place.
   static priorityScale = {
     up: 1,
     upstick: 2,
+    play: 3,
   }
 
   reverse() {
@@ -290,6 +328,9 @@ class Animation { // Information about an animation currently taking place.
       case "up":
       case "upstick":
         object.model.source.translation = [0, 1, -0.25].map(val => val * multiplier);
+        break;
+      case "play":
+        object.model.source.translation = this.customTranslation.map(val => val * multiplier);
         break;
     }
 

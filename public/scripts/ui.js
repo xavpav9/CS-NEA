@@ -7,19 +7,23 @@ class Scene {
   constructor(canvas) {
     this.canvas = canvas;
     this.gl = this.canvas.getContext("webgl2");
+
     this.players = []; // Players in game
     this.docs = []; // Decks of cards in game
-    this.tricks = [];
+    this.tricks = []; // Tricks in game
+    this.discards = []; // Player discard piles
     this.models = []; // Models to render
     this.playerCards = []; // Cards in player hands
     this.docCards = []; // Cards in a deck
     this.textureCount = 1; // 0 is the picking texture
     this.textures = [null]; // Cache of textures
     this.cameraPosition = [0, 20, 34];
+
     this.origin = new Node(); // Root node of scene graph
     this.idCount = 1; // Picking id
     this.currentId = 0; // Current thing being picked (0 = nothing)
     this.active = true; // Whether rendering or not
+    this.gameState = "idle"; // Part of game being played
 
     this.mouseX = -1;
     this.mouseY = -1;
@@ -34,19 +38,30 @@ class Scene {
       if (evt.button === 0 && this.currentId !== 0) {
         const card = this.playerCards.find(val => val.id === this.currentId);
 
-        // Keep card in air when clicked, and go down when clicked again.
-        if (card.getAnimationType() === "up") {
-          // Max 3 cards up at once.
-          const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
-          upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
-          upCards.slice(2).forEach(card => {
-            card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
-            card.reverseAnimation("up");
-          });
+        switch (this.gameState) {
+          case "idle":
+            break;
+          case "start": // Select 3 cards to give to an opponent
 
-          card.setAnimation(new Animation("upstick", 0));
-        } else {
-          card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+            // Keep card in air when clicked, and go down when clicked again.
+            if (card.getAnimationType() === "up") {
+              // Max 3 cards up at once.
+              const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
+              upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
+              upCards.slice(2).forEach(card => {
+                card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+                card.reverseAnimation("up");
+              });
+
+              card.setAnimation(new Animation("upstick", 0));
+            } else {
+              card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+            }
+            break;
+          case "main":
+            this.playCard(card);
+            this.setGameState("idle");
+            break;
         }
       }
     });
@@ -98,6 +113,27 @@ class Scene {
    * changeGameState(number); // What the player should be doing (e.g. waiting, playing, selecting 3 cards, etc.)
    */
 
+  setGameState(state) {
+    this.gameState = state;
+  }
+
+  playCard(card) {
+    if (card.player.turn) {
+      card.player.setTurn(false);
+
+      // Position of card relative to origin
+      const position = card.model.worldMatrix.slice(12,15);
+
+      // Set origin of position to the discard model.
+      for (let i=0; i<3; ++i) position[i] -= card.player.discard.model.source.translation[i];
+
+      this.moveToDiscard(card);
+
+      card.setAnimation(new Animation("play", 1000, 1000, position));
+      card.reverseAnimation("play");
+    }
+  }
+
   async addPlayer(player) {
     this.players.push(player);
     player.model.setParent(this.origin);
@@ -126,19 +162,27 @@ class Scene {
       }
     }
 
+
+    // Set up player cards and docs
     player.cards.forEach(card => this.addCard(card, player, null));
     player.tricks.forEach(trick => this.addDoc(trick, player));
+    this.addDoc(player.discard, player);
   }
 
   async addDoc(doc, player=null) {
-    if (doc.type === "trick") {
-      this.tricks.push(doc);
-    } else {
-      this.docs.push(doc);
+    switch (doc.type) {
+      case "trick":
+        this.tricks.push(doc);
+        break;
+      case "discard":
+        this.discards.push(doc);
+        break;
+      default:
+        this.docs.push(doc);
     }
 
     doc.model.setParent(this.origin);
-    doc.cards.forEach(card => this.addCard(card, player, doc));
+    if (doc.type !== "discard") doc.cards.forEach(card => this.addCard(card, player, doc));
   }
 
   async addCard(card, player, doc) {
@@ -259,6 +303,12 @@ class Scene {
     model.ready = true;
   }
 
+  moveToDiscard(card) {
+    card.player.moveToDiscard(card);
+    this.playerCards.splice(this.playerCards.indexOf(card), 1);
+    this.docCards.push(card);
+  }
+
   removeModel(model) {
     if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
   }
@@ -273,7 +323,7 @@ class Scene {
 
   getAllDocs() {
     const docs = [];
-    for (const doc of this.docs.concat(this.tricks)) {
+    for (const doc of this.docs.concat(this.tricks).concat(this.discards)) {
       if (!docs.includes(doc)) docs.push(doc);
     }
     return docs;
@@ -410,6 +460,15 @@ class Scene {
             trickCardCount++;
           }
           count++;
+        }
+
+        // Set up discard piles infront of players
+        player.discard.model.source.translation[0] += player.position[0] * 0.1;
+        player.discard.model.source.translation[1] += 0;
+        player.discard.model.source.translation[2] += player.position[2] * 0.1;
+
+        for (const card of player.discard.cards) {
+          card.model.source.rotation[1] += -player.angle;
         }
       }
 
@@ -589,6 +648,8 @@ class Scene {
           let offset = 0;
           this.gl.drawArrays(primitiveType, offset, model.w.count);
         }
+
+        model.copySource();
       }
 
       if (this.active) requestAnimationFrame(draw);

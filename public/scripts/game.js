@@ -31,4 +31,8 @@ scene.addPlayer(player3);
 scene.addPlayer(player4);
 // scene.addPlayer(player5);
 
-scene.addDoc(doc);
+// scene.addDoc(doc);
+
+
+player2.setTurn(true);
+scene.setGameState("main");
