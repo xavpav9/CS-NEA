@@ -104,19 +104,21 @@ class Scene {
   stateStart(card) {
     const player = card.player;
 
-    // Keep card in air when clicked, and go down when clicked again.
-    if (card.getAnimationType() === "up" || card.getAnimationType() === null) {
-      // Max 3 cards up at once.
-      const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
-      upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
-      upCards.slice(2).forEach(card => {
-        card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
-        card.reverseAnimation("up");
-      });
+    if (player) {
+      // Keep card in air when clicked, and go down when clicked again.
+      if (card.getAnimationType() === "up" || card.getAnimationType() === null) {
+        // Max 3 cards up at once.
+        const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
+        upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
+        upCards.slice(2).forEach(card => {
+          card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+          card.reverseAnimation("up");
+        });
 
-      card.setAnimation(new Animation("upstick", 0));
-    } else {
-      card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+        card.setAnimation(new Animation("upstick", 0));
+      } else {
+        card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+      }
     }
 
     return this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
