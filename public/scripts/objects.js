@@ -203,6 +203,7 @@ class Card {
     this.doc = null;
     this.animation = null;
     this.randomness = Math.random(); // A constant random number for variation in card placement
+    this.animationPosition = [0, 0, 0]; // A position being used for an animation
 
     this.id = id; // picking id
     id++;
@@ -329,6 +330,7 @@ class Player {
 
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.turn = false; // Whether it is this players current turn
+    this.threeCardsSelected = false;
 
     // Rendering attributes
     this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholder arguments.
@@ -342,12 +344,22 @@ class Player {
     this.scene.addDiscard(this.discard);
   }
 
-  addCard(card) {
+  addCard(card, index=null) {
     card.player = this;
     card.doc = null;
 
-    this.cards.push(card);
+    if (index) this.cards.splice(index, 0, card);
+    else this.cards.push(card);
+
     this.scene.addPlayerCard(card)
+  }
+
+  removeCard(card) {
+    if (this.cards.includes(card)) {
+      card.player = null;
+      this.cards.splice(this.cards.indexOf(card), 1);
+      this.scene.removePlayerCard(card);
+    }
   }
 
   addTrick(trick) {
@@ -363,6 +375,21 @@ class Player {
     this.discard.addCard(card);
 
     this.scene.playCard(card);
+  }
+
+  passCards(cards, otherPlayer, newCardInxs) { // 0=left, 1=right, 2=middle
+    cards.forEach((card, inx) => {
+      this.scene.passCard(card, otherPlayer, newCardInxs[inx], (animation) => {
+        card.setAnimation(null);
+        card.animationPosition = [0, 0, 0];
+
+        card.model.startRendering = false;
+        card.model.rendering = false;
+
+        this.removeCard(card);
+        otherPlayer.addCard(card, newCardInxs[inx]);
+      });
+    });
   }
 }
 
@@ -384,6 +411,7 @@ class Animation { // Information about an animation currently taking place.
     upstick: 2,
     play: 3,
     pickup: 3,
+    passCard: 3,
   }
 
   reverse() {
@@ -404,6 +432,12 @@ class Animation { // Information about an animation currently taking place.
       case "pickup":
       case "play":
         object.model.source.translation = this.customTranslation.map(val => val * multiplier);
+        break;
+      case "passCard":
+        object.model.source.rotation[0] = Math.PI; // Facedown
+        object.model.source.translation = object.animationPosition.map((val, inx) => 
+          val + this.customTranslation.map(val => val * multiplier)[inx]
+        );
         break;
     }
 

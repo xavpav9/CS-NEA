@@ -102,10 +102,12 @@ class Scene {
    */
 
   stateStart(card) {
+    const player = card.player;
+
     // Keep card in air when clicked, and go down when clicked again.
-    if (card.getAnimationType() === "up") {
+    if (card.getAnimationType() === "up" || card.getAnimationType() === null) {
       // Max 3 cards up at once.
-      const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick");
+      const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
       upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
       upCards.slice(2).forEach(card => {
         card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
@@ -117,7 +119,7 @@ class Scene {
       card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
     }
 
-    return this.playerCards.filter(card => card.getAnimationType() === "upstick");
+    return this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
   }
 
   playCard(card) {
@@ -200,7 +202,7 @@ class Scene {
 
   removePlayerCard(card) {
     if (this.playerCards.includes(card)) {
-      this.playerCards.splice(this.playerCards.indexOf(card), 1)
+      this.playerCards.splice(this.playerCards.indexOf(card), 1);
     }
   }
 
@@ -348,6 +350,30 @@ class Scene {
   }
 
 
+  //TODO
+  passCard(card, otherPlayer, newCardInx, animationCallback) {
+    card.player = null;
+    // Position when in player's hand
+    const startPosition = card.model.worldMatrix.slice(12,15);
+
+    // Position when in newPlayer's hand
+    card.model.setParent(otherPlayer.model);
+    card.model.source.reset();
+    this.setPlayerCardModel(card, 13, newCardInx);
+    this.origin.updateWorldMatrix();
+
+    const endPosition = card.model.worldMatrix.slice(12, 15);
+
+    const translation = endPosition.map((val, inx) => val - startPosition[inx]);
+
+    // Render position from perspective of origin
+    card.model.setParent(this.origin);
+    card.animationPosition = startPosition;
+
+    card.setAnimation(new Animation("passCard", 2000, 0, translation, animation => animationCallback(animation)));
+  }
+
+
   removeModel(model) {
     if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
   }
@@ -464,7 +490,6 @@ class Scene {
     const far = 10000;
 
     const draw = now =>  {
-      // console.log(this.models.length);
       const timeDelta = now - then;
       then = now;
 
@@ -491,7 +516,9 @@ class Scene {
         const numOfCards = player.cards.length;
         let cardCount = 0;
         for (const card of player.cards) {
-          this.setPlayerCardModel(card, numOfCards, cardCount);
+          if (card.model.parentNode === player.model) {
+            this.setPlayerCardModel(card, numOfCards, cardCount);
+          }
           cardCount++;
         }
 
