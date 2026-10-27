@@ -1,6 +1,6 @@
 import {m4} from "./linear-algebra.js";
 
-let id = 0;
+let id = 1; // id=0 is when nothing is selected
 
 class Node {
   constructor(hasSource=true) {
@@ -81,7 +81,10 @@ class Model extends Node { // 3D Model
     super(hasSource);
     this.type = type; // e.g. "card", "player", etc.
     this.w = {}; // webgl data
-    this.ready = false;
+
+    this.ready = false; // Whether Buffers/vaos/uniforms have been setup
+    this.startRendering = false; // Should this model be rendered starting from the next frame
+    this.rendering = false; // Should this model be rendered
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -271,6 +274,7 @@ class DOC { // Deck of Cards
 class Pickup extends DOC {
   constructor(scene, cards=[]) {
     super(scene, cards);
+    this.topCardOffset = 0;
   }
 
   popCard() {
@@ -281,10 +285,26 @@ class Pickup extends DOC {
       return card;
     } else return false;
   }
+
+  topCard() {
+    return (this.cards.length) ? this.cards.at(-1 - this.topCardOffset) : false;
+  }
   
-  dealCard(player) {
-    const card = this.popCard();
-    if (card) player.addCard(card);
+  dealCard(player, cardInx) {
+    const card = this.topCard();
+    this.topCardOffset++; // Keep card in pickup pile, but it is not actually the top card
+
+    this.scene.dealCard(card, player, cardInx, animation => {
+      // Halt any rendering
+      card.setAnimation(null);
+      card.model.startRendering = false;
+      card.model.rendering = false;
+
+      // Move card from here to player
+      this.popCard();
+      this.topCardOffset--;
+      player.addCard(card);
+    });
   }
 }
 
@@ -338,10 +358,6 @@ class Player {
     this.scene.addTrick(trick);
   }
 
-  setTurn(turn) {
-    this.turn = turn;
-  }
-
   playCard(card) {
     this.cards.splice(this.cards.indexOf(card), 1);
     this.discard.addCard(card);
@@ -351,11 +367,12 @@ class Player {
 }
 
 class Animation { // Information about an animation currently taking place.
-  constructor(type, time, currentTime=0, customTranslation=[0,0,0]) { // time/ms
+  constructor(type, time, currentTime=0, customTranslation=[0,0,0], callback=null) { // time/ms
     // type could be changing a game state, placing a card, declaring the winner etc.
     this.reversed = false;
     this.type = type;
     this.customTranslation = customTranslation;
+    this.callback = callback;
 
     this.maxTime = time;
     this.start = Date.now() - currentTime;
@@ -366,6 +383,7 @@ class Animation { // Information about an animation currently taking place.
     up: 1,
     upstick: 2,
     play: 3,
+    pickup: 3,
   }
 
   reverse() {
@@ -383,13 +401,15 @@ class Animation { // Information about an animation currently taking place.
       case "upstick":
         object.model.source.translation = [0, 1, -0.25].map(val => val * multiplier);
         break;
+      case "pickup":
       case "play":
         object.model.source.translation = this.customTranslation.map(val => val * multiplier);
         break;
     }
 
     if (timeFraction === 1) { // Reached end of animation.
-      if (this.reversed) object.setAnimation(null); // 1. Cancels animation when back in original place
+      if (this.callback) this.callback(this);
+      else if (this.reversed) object.setAnimation(null); // 1. Cancels animation when back in original place
     };
   }
 }

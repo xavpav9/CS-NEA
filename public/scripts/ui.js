@@ -3,6 +3,16 @@ import {Node, Animation} from "./objects.js";
 
 const UP_ANIMATION_TIME = 150;
 
+const rp = { // Rendering Parameters
+  ANGLE_SEPARATION: Math.PI/32, // Separation of cards on circle around player.
+  CARD_DIST: 20, // Radius of circle which cards lie on from the player.
+  DIP: -6, // How far cards are below line-of-sight of player.
+
+  TRICK_COLUMN_SEPARATION: 0.3,
+  TRICK_ROW_SEPARATION: 0.4,
+  TRICKS_PER_ROW: 4,
+}
+
 class Scene {
   constructor(canvas, game) {
     this.canvas = canvas;
@@ -38,9 +48,9 @@ class Scene {
 
     this.gl.canvas.addEventListener("click", evt => {
       if (evt.button === 0 && this.currentId !== 0) {
-        const card = this.playerCards.find(val => val.id === this.currentId);
+        const card = this.getAllCards().find(val => val.id === this.currentId);
 
-        this.game.click(card);
+        if (card) this.game.click(card);
       }
     });
 
@@ -182,12 +192,16 @@ class Scene {
 
     if (!card.model.ready) {
       this.addModel(card.model);
+    } else {
+      card.model.startRendering = true;
     }
   }
 
 
   removePlayerCard(card) {
-    if (this.playerCards.includes(card)) this.playerCards.splice(this.playerCards.indexOf(card), 1);
+    if (this.playerCards.includes(card)) {
+      this.playerCards.splice(this.playerCards.indexOf(card), 1)
+    }
   }
 
 
@@ -203,7 +217,9 @@ class Scene {
 
 
   removeDocCard(card) {
-    if (this.docCards.includes(card)) this.docCards.splice(this.docCards.indexOf(card), 1);
+    if (this.docCards.includes(card)) {
+      this.docCards.splice(this.docCards.indexOf(card), 1);
+    }
   }
 
 
@@ -311,18 +327,69 @@ class Scene {
 
     this.models.push(model);
     model.ready = true;
+    model.startRendering = true;
   }
 
 
-  dealCard(player) {
-    // const card = this.removeTopCard();
+  dealCard(card, player, cardInx, animationCallback) {
+    // Calculate worldMatrix from perspective of player
+    card.model.setParent(player.model);
 
-    // this.addCard(card, player, null, false);
+    card.model.source.reset();
+    this.setPlayerCardModel(card, cardInx, cardInx);
+    this.origin.updateWorldMatrix();
+
+    const position = card.model.worldMatrix.slice(12,15);
+
+    // Render position from perspective of pickup pile
+    card.model.setParent(card.doc.model);
+
+    card.setAnimation(new Animation("pickup", 2000, 0, position, animation => animationCallback(animation)));
   }
 
 
   removeModel(model) {
     if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
+  }
+
+
+  setPlayerCardModel(card, numOfCards, count) {
+    const model = card.model;
+    model.source.translation[0] += rp.CARD_DIST * Math.sin((count - (numOfCards-1)/2) * rp.ANGLE_SEPARATION);
+    model.source.translation[1] += rp.DIP;
+    model.source.translation[2] += -rp.CARD_DIST * Math.cos((count - (numOfCards-1)/2) * rp.ANGLE_SEPARATION);
+
+    // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
+    model.source.rotation[0] += Math.acos(-rp.DIP/rp.CARD_DIST) // roll
+    model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32; // yaw
+
+    return model;
+  }
+
+  setTrickCardModel(card, count) {
+    const model = card.model;
+
+    model.source.rotation[0] += Math.PI; // Facedown
+    model.source.rotation[1] += -player.angle // Pitch In line with player view
+    model.source.translation[1] += 0.025 + 0.05 * count; // 0.05 = depth of card
+
+    // Variations in card placement
+    model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
+    model.source.translation[0] += card.randomness * 0.5
+    model.source.translation[2] += card.randomness * 0.5
+
+    return model;
+  }
+
+  setDiscardCardModel(card) {
+    const model = card.model;
+
+    model.source.rotation[1] += -card.player.angle;
+
+    return model;
+  }
+
+  setPickupCardModel() {
   }
 
 
@@ -415,9 +482,6 @@ class Scene {
 
       // Set up cameraMatrix and card translations
       let cameraMatrix = m4.identity();
-      const angleSeparation = Math.PI/32; // Separation of cards on circle around player.
-      const cardDist = 20; // Radius of circle which cards lie on from the player.
-      const dip = -6; // How far cards are below line-of-sight of player.
       for (const player of this.players) {
         const playerCameraMatrix = m4.lookAt(player.position, [0, -2, 2])
         player.model.localMatrix = playerCameraMatrix;
@@ -425,30 +489,24 @@ class Scene {
 
         // Set up cards in a circle around player.
         const numOfCards = player.cards.length;
-        let count = 0;
+        let cardCount = 0;
         for (const card of player.cards) {
-          const model = card.model;
-          model.source.translation[0] += cardDist * Math.sin((count - (numOfCards-1)/2) * angleSeparation);
-          model.source.translation[1] += dip;
-          model.source.translation[2] += -cardDist * Math.cos((count - (numOfCards-1)/2) * angleSeparation);
-          count++;
+          this.setPlayerCardModel(card, numOfCards, cardCount);
+          cardCount++;
         }
 
         // Set up tricks in front of players (on table)
         const numOfTricks = player.tricks.length;
-        const columnSeparation = 0.3;
-        const rowSeparation = 0.4;
-        const tricksPerRow = 4;
 
         const x = player.position[0] * 0.4;
         const z = player.position[2] * 0.4;
 
-        count = 0;
+        let trickCount = 0;
         for (const trick of player.tricks) {
 
           // Tricks are arranged in a grid. These are there relative placements in this grid.
-          const columnOffset = columnSeparation * (count % tricksPerRow - (tricksPerRow-1)/2);
-          const rowOffset = rowSeparation * (Math.floor(count / tricksPerRow));
+          const columnOffset = rp.TRICK_COLUMN_SEPARATION * (trickCount % rp.TRICKS_PER_ROW - (rp.TRICKS_PER_ROW-1)/2);
+          const rowOffset = rp.TRICK_ROW_SEPARATION * (Math.floor(trickCount / rp.TRICKS_PER_ROW));
 
           const currentX = x * (1 + rowOffset);
           const currentZ = z * (1 + rowOffset);
@@ -460,20 +518,10 @@ class Scene {
 
           let trickCardCount = 0;
           for (const card of trick.cards) {
-            const model = card.model;
-
-            model.source.rotation[0] += Math.PI; // Facedown
-            model.source.rotation[1] += -player.angle // Pitch In line with player view
-            model.source.translation[1] += 0.025 + 0.05 * trickCardCount; // 0.05 = depth of card
-
-            // Variations in card placement
-            model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
-            model.source.translation[0] += card.randomness * 0.5
-            model.source.translation[2] += card.randomness * 0.5
-
+            this.setTrickCardModel(card, trickCardCount);
             trickCardCount++;
           }
-          count++;
+          trickCount++;
         }
 
         // Set up discard piles infront of players
@@ -481,8 +529,9 @@ class Scene {
         player.discard.model.source.translation[1] += 0;
         player.discard.model.source.translation[2] += player.position[2] * 0.1;
 
+
         for (const card of player.discard.cards) {
-          card.model.source.rotation[1] += -player.angle;
+          this.setDiscardCardModel(card)
         }
       }
 
@@ -491,15 +540,8 @@ class Scene {
       const projectionMatrix = m4.perspective(fovY, this.gl.canvas.width/this.gl.canvas.height, near, far);
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
+
       // Update card source matrices
-      for (const card of this.playerCards) {
-        const model = card.model;
-
-        // Rotate card to face player. Small yaw adjustment (Math.PI/32) such that card faces show.
-        model.source.rotation[0] += Math.acos(-dip/cardDist) // roll
-        model.source.rotation[2] += -Math.atan(model.source.translation[0] / model.source.translation[2]) - Math.PI/32; // yaw
-      }
-
       let docCardCount = 0;
       for (const doc of this.pickups) {
         for (const card of doc.cards) {
@@ -562,10 +604,12 @@ class Scene {
       this.gl.clearColor(0, 0, 0, 0);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
+      const allCards = this.getAllCards();
+
       this.gl.useProgram(pickingProgram);
-      for (const card of this.playerCards) {
+      for (const card of allCards) {
         const model = card.model;
-        if (model.ready && card.player.mainPlayer) {
+        if (model.ready && model.rendering) {
           if (model.w.vao !== previousVao) {
             this.gl.bindVertexArray(model.w.vao);
             previousVao = model.w.vao;
@@ -603,19 +647,22 @@ class Scene {
 
       // Card hovered over has changed, so reverse "up" animation on new & old card (if they exist).
       if (this.currentId !== oldId) {
-        const oldCard = this.playerCards.find(val => val.id === oldId);
-        const newCard = this.playerCards.find(val => val.id === this.currentId);
+        const oldCard = allCards.find(val => val.id === oldId);
+        const newCard = allCards.find(val => val.id === this.currentId);
 
-        if (oldCard) oldCard.reverseAnimation("up");
-        if (newCard) newCard.reverseAnimation("up");
+        if (oldCard && oldCard.player && oldCard.player.mainPlayer) oldCard.reverseAnimation("up");
+        if (newCard && newCard.player && newCard.player.mainPlayer) newCard.reverseAnimation("up");
       }
 
       // Card has been hovered on for at least two frames. Therefore, start an "up" animation.
       if (this.currentId && this.currentId === oldId) {
-        const card = this.playerCards.find(val => val.id === this.currentId);
-        card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
+        const card = allCards.find(val => val.id === this.currentId);
 
-        this.canvas.style.cursor = "pointer";
+        if (card.player && card.player.mainPlayer) {
+          card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
+
+          this.canvas.style.cursor = "pointer";
+        }
       } else {
         this.canvas.style.cursor = "default";
       }
@@ -632,38 +679,42 @@ class Scene {
 
       // Draw models to canvas
       for (const model of this.models) {
-        if (model.ready && model.type === "card") {
-          this.gl.enable(this.gl.CULL_FACE);
-          this.gl.cullFace(this.gl.BACK);
-          this.gl.enable(this.gl.DEPTH_TEST);
+        if (model.ready && model.rendering) {
+          if (model.type === "card") {
+            this.gl.enable(this.gl.CULL_FACE);
+            this.gl.cullFace(this.gl.BACK);
+            this.gl.enable(this.gl.DEPTH_TEST);
 
-          if (model.w.program !== previousProgram) {
-            this.gl.useProgram(model.w.program);
-            previousProgram = model.w.program;
+            if (model.w.program !== previousProgram) {
+              this.gl.useProgram(model.w.program);
+              previousProgram = model.w.program;
+            }
+            if (model.w.vao !== previousVao) {
+              this.gl.bindVertexArray(model.w.vao);
+              previousVao = model.w.vao;
+            }
+
+
+            const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.worldMatrix);
+
+            this.gl.uniformMatrix4fv(model.w.uniformLocations.viewProjection, false, viewProjectionMatrix);
+            this.gl.uniformMatrix4fv(model.w.uniformLocations.world, false, worldMatrix);
+
+            if (model.w.textureUnit !== undefined) {
+              this.gl.uniform1i(model.w.uniformLocations.image, model.w.textureUnit);
+            } else {
+              // this.gl.uniform4fv(model.w.uniformLocations.colour, model.w.uniforms.colour);
+            }
+
+            let primitiveType = this.gl.TRIANGLES;
+            let offset = 0;
+            this.gl.drawArrays(primitiveType, offset, model.w.count);
           }
-          if (model.w.vao !== previousVao) {
-            this.gl.bindVertexArray(model.w.vao);
-            previousVao = model.w.vao;
-          }
 
-
-          const worldMatrix = m4.multiply(model.worldMatrix, model.w.uniforms.worldMatrix);
-
-          this.gl.uniformMatrix4fv(model.w.uniformLocations.viewProjection, false, viewProjectionMatrix);
-          this.gl.uniformMatrix4fv(model.w.uniformLocations.world, false, worldMatrix);
-
-          if (model.w.textureUnit !== undefined) {
-            this.gl.uniform1i(model.w.uniformLocations.image, model.w.textureUnit);
-          } else {
-            // this.gl.uniform4fv(model.w.uniformLocations.colour, model.w.uniforms.colour);
-          }
-
-          let primitiveType = this.gl.TRIANGLES;
-          let offset = 0;
-          this.gl.drawArrays(primitiveType, offset, model.w.count);
+          model.copySource();
         }
 
-        model.copySource();
+        if (model.startRendering) model.rendering = true;
       }
 
       if (this.active) requestAnimationFrame(draw);
@@ -710,4 +761,5 @@ class Scene {
   }
 }
 
+export {rp};
 export default Scene;

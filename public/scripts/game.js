@@ -1,8 +1,10 @@
 import Scene from "./ui.js";
+import {rp} from "./ui.js";
 import {Model, Card, Player, Pickup, Trick} from "./objects.js";
 
 class Deck {
-  constructor() {
+  constructor(scene) {
+    this.scene = scene;
     this.cards = Deck.types.map(type => new Card(this.scene, type));
   }
 
@@ -30,8 +32,9 @@ class Game {
   constructor(canvas, numOfPlayers) {
     this.scene = new Scene(canvas, this);
     this.state = "idle";
-    this.deck = new Deck();
+    this.deck = new Deck(this.scene);
     this.deck.shuffle();
+    this.dealt = false;
 
     this.pickupPile = new Pickup(this.scene, this.deck.cards);
 
@@ -40,7 +43,7 @@ class Game {
       const mainPlayer = (i===0);
 
       const player = new Player(this.scene, mainPlayer);
-      player.setTurn(mainPlayer);
+      player.turn = mainPlayer;
 
       // player.addTrick(new Trick(this.scene, [new Card(this.scene, "6d")]));
 
@@ -52,28 +55,46 @@ class Game {
   }
 
   deal() {
-    const deckLength = this.pickupPile.cards.length;
+    if (!this.dealt) {
+      const deckLength = this.pickupPile.cards.length;
 
-    for (let i=0; i<deckLength; ++i) {
-      const player = this.players[i % (this.players.length)];
-      this.pickupPile.dealCard(player);
+      for (let i=0; i<deckLength; ++i) {
+        const player = this.players[i % (this.players.length)];
+        const currentCard = Math.floor(i / this.players.length);
+
+        setTimeout(() => this.pickupPile.dealCard(player, currentCard), i*50);;
+      }
     }
+
+    this.dealt = true;
   }
 
   setState(state) {
     this.state = state;
   }
-
   
   click(card) {
     switch (this.state) {
       case "idle":
+        if (card.doc === this.pickupPile) {
+          this.deal();
+          this.setState("start");
+
+          // TODO: Set correct player turn
+          this.players.find(player => player.mainPlayer).turn = true;
+        }
         break;
       case "start": // Select 3 cards to give to an opponent
         const selection = this.scene.stateStart(card);
         break;
       case "main":
-        card.player.playCard(card);
+        if (card.player && card.player.mainPlayer && card.player.turn) {
+          card.player.turn = false;
+          card.player.playCard(card);
+
+          // TODO: Manage player turns
+        }
+
         break;
     }
   }
