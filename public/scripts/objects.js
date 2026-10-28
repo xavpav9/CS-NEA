@@ -354,6 +354,7 @@ class Player {
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.turn = false; // Whether it is this players current turn
     this.threeCardsSelected = false;
+    this.sorting = false; // Whether players cards are currently being sorted or not.
 
     // Rendering attributes
     this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholder arguments.
@@ -400,7 +401,7 @@ class Player {
     this.scene.playCard(card);
   }
 
-  passCards(cards, otherPlayer, newCardInxs) { // 0=left, 1=right, 2=middle
+  passCards(cards, otherPlayer, newCardInxs) { // Cards go to another player
     cards.forEach((card, inx) => {
       this.scene.passCard(card, otherPlayer, newCardInxs[inx], (animation) => {
         card.setAnimation(null);
@@ -413,6 +414,53 @@ class Player {
         otherPlayer.addCard(card, newCardInxs[inx]);
       });
     });
+  }
+
+  moveCards(cards, cardTypes) { // Cards stay with current player
+    const newCardInxs = this.cards.map(card => cardTypes.indexOf(card.type));
+    const animationsFinished = [];
+
+    cards.forEach((card, inx) => {
+      animationsFinished.push(false);
+      this.scene.moveCard(card, newCardInxs[inx], animation => {
+        card.setAnimation(null);
+
+        animationsFinished[inx] = true;
+        if (animationsFinished.every(bool => bool)) this.sorting = false;
+      });
+    });
+
+    this.cards.sort((a, b) => cardTypes.indexOf(a.type) - cardTypes.indexOf(b.type));
+  }
+
+  sortCards() {
+    if (!this.sorting) {
+      this.sorting = true;
+
+      const cardTypes = this.cards.map(card => card.type);
+
+      const priorityNum = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k"];
+      const prioritySuit = ["h", "s", "d", "c"];
+
+      cardTypes.sort((a, b) => {
+        const numA = a.slice(0, -1);
+        const numB = b.slice(0, -1);
+        const suitA = a.slice(-1);
+        const suitB = b.slice(-1);
+
+        const priorityA = priorityNum.indexOf(numA) + 100 * prioritySuit.indexOf(suitA);
+        const priorityB = priorityNum.indexOf(numB) + 100 * prioritySuit.indexOf(suitB);
+
+        return priorityA - priorityB;
+      });
+
+      // Only animate if cards are not sorted
+      if (!this.cards.every((card, inx) => card.type === cardTypes[inx])) {
+        this.moveCards(this.cards, cardTypes);
+      } else {
+        this.sorting = false;
+      }
+    }
   }
 }
 
@@ -435,6 +483,7 @@ class Animation { // Information about an animation currently taking place.
     play: 3,
     pickup: 3,
     passCard: 3,
+    moveCard: 3,
   }
 
   reverse() {
@@ -452,6 +501,7 @@ class Animation { // Information about an animation currently taking place.
       case "upstick":
         object.model.source.translation = [0, 1, -0.25].map(val => val * multiplier);
         break;
+      case "moveCard":
       case "pickup":
       case "play":
         object.model.source.translation = this.customTranslation.map(val => val * multiplier);

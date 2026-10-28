@@ -352,13 +352,13 @@ class Scene {
   }
 
 
-  //TODO
+  // Card goes to another player
   passCard(card, otherPlayer, newCardInx, animationCallback) {
     card.player = null;
-    // Position when in player's hand
+    // Position when in player's hand from origin
     const startPosition = card.model.worldMatrix.slice(12,15);
 
-    // Position when in newPlayer's hand
+    // Position when in newPlayer's hand from origin
     card.model.setParent(otherPlayer.model);
     card.model.source.reset();
     this.setPlayerCardModel(card, 13, newCardInx);
@@ -373,6 +373,25 @@ class Scene {
     card.animationPosition = startPosition;
 
     card.setAnimation(new Animation("passCard", 2000, 0, translation, animation => animationCallback(animation)));
+  }
+
+
+  // Card stays with same player
+  moveCard(card, newCardInx, animationCallback) {
+    // Old position from player
+    const endPosition = card.model.currentSource.translation.slice();
+
+    // New position from player
+    card.model.source.reset();
+    this.setPlayerCardModel(card, 13, newCardInx);
+
+    const startPosition = card.model.source.translation.slice();
+
+    const translation = endPosition.map((val, inx) => val - startPosition[inx]);
+
+    // translation goes from new to old, so reverseAnimation makes it go from old to new.
+    card.setAnimation(new Animation("moveCard", 1500, 1500, translation, animation => animationCallback(animation)));
+    card.reverseAnimation("moveCard");
   }
 
 

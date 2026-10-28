@@ -85,37 +85,41 @@ class Game {
         }
         break;
       case "start": // Select 3 cards to give to an opponent
-        const selection = this.scene.stateStart(card);
+        if (card.player) {
+          const selection = this.scene.stateStart(card);
 
-        // TODO: This condition should be when player chooses to pass cards
-        if (selection.length === 3) {
-          card.player.threeCardsSelected = true;
+          // TODO: This condition should be when player chooses to pass cards
+          if (selection.length === 3) {
+            card.player.threeCardsSelected = true;
 
-          if (this.players.every(player => player.threeCardsSelected)) {
-            const cardsArr = [];
-            const nextPlayerArr = [];
-            const newCardInxsArr = []; // The indices of where the cards should go
+            if (this.players.every(player => player.threeCardsSelected)) {
+              const cardsArr = [];
+              const nextPlayerArr = [];
+              const newCardInxsArr = []; // The indices of where the cards should go
 
-            // Collect data
-            this.players.forEach((player, inx) => {
-              const nextPlayer = this.players[(inx + 1) % this.players.length];
-              const cards = player.cards.filter(card => card.getAnimationType() === "upstick");
-              cardsArr.push(cards);
-              nextPlayerArr.push(nextPlayer);
-              newCardInxsArr.push([]);
+              // Collect destination data
+              this.players.forEach((player, inx) => {
+                const nextPlayer = this.players[(inx + 1) % this.players.length];
+                const cards = player.cards.filter(card => card.getAnimationType() === "upstick");
+                cardsArr.push(cards);
+                nextPlayerArr.push(nextPlayer);
+                newCardInxsArr.push([]);
 
-              nextPlayer.cards.forEach((card, cardInx) => {
-                if (card.getAnimationType() === "upstick") {
-                  newCardInxsArr[inx].push(cardInx);
-                }
+                nextPlayer.cards.forEach((card, cardInx) => {
+                  if (card.getAnimationType() === "upstick") {
+                    newCardInxsArr[inx].push(cardInx);
+                  }
+                });
               });
-            });
 
-            // Move cards
-            this.players.forEach((player, inx) => {
-              player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx]);
-              player.threeCardsSelected = false;
-            });
+              // Pass cards to correct destinations
+              this.players.forEach((player, inx) => {
+                player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx]);
+                player.threeCardsSelected = false;
+              });
+            }
+          } else {
+            card.player.threeCardsSelected = false;
           }
         }
 
