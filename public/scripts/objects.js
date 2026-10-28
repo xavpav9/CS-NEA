@@ -208,9 +208,14 @@ class Card {
     this.id = id; // picking id
     id++;
 
-    const texcoords = Card.texcoords[this.type];
-    this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : Card.texcoords.blank, Card.texcoords.back]);
+    const texcoords = this.getTexcoords(this.type);
+    const blank = this.getTexcoords("blank");
+    const back = this.getTexcoords("back");
+    this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : blank, back]);
   }
+
+  static geometryFile = "card.obj";
+  static textureFile = "card-atlas.png";
 
   setAnimation(animation, force=false) {
     if (animation === null) {
@@ -244,13 +249,31 @@ class Card {
     return (this.animation) ? this.animation.start : null;
   }
 
-  static geometryFile = "card.obj";
-  static textureFile = "card-atlas.png";
-  static texcoords = {
-    "blank": [[0, 0], [0, 0]],
-    "6d": [[0, .5], [0, 1]],
-    "back": [[.5, 1], [0, 1]],
-  } // Plus a blank version for other player's cards.
+  getTexcoords(type) {
+    // 1989x895, 11px gap between images (and at top and bottom)
+    const pixelX = 1/1989;
+    const pixelY = 1/895;
+
+    if (type === "blank") return [[0, 0], [0, 0]];
+    else if (type === "back") return [[0, pixelX], [0, pixelY]];
+
+    const gapX = pixelX * 11;
+    const gapY = pixelY * 11;
+
+    const num = type.slice(0, -1);
+    const suit = type.slice(-1);
+
+    const cardHeight = 1/4;
+    const cardWidth = 1/13;
+
+    const x = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k"].indexOf(num)/13;
+    const y = ["h", "d", "c", "s"].indexOf(suit)/4;
+
+    return [
+      [x + gapX, x + cardWidth],
+      [y + gapY, y + cardHeight],
+    ];
+  }
 }
 
 class DOC { // Deck of Cards

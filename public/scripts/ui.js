@@ -5,10 +5,10 @@ const UP_ANIMATION_TIME = 150;
 
 const rp = { // Rendering Parameters
   ANGLE_SEPARATION: Math.PI/32, // Separation of cards on circle around player.
-  CARD_DIST: 20, // Radius of circle which cards lie on from the player.
-  DIP: -6, // How far cards are below line-of-sight of player.
+  CARD_DIST: 16, // Radius of circle which cards lie on from the player.
+  DIP: -4, // How far cards are below line-of-sight of player.
 
-  TRICK_COLUMN_SEPARATION: 0.3,
+  TRICK_COLUMN_SEPARATION: 0.35,
   TRICK_ROW_SEPARATION: 0.4,
   TRICKS_PER_ROW: 4,
 }
@@ -398,13 +398,13 @@ class Scene {
     const model = card.model;
 
     model.source.rotation[0] += Math.PI; // Facedown
-    model.source.rotation[1] += -player.angle // Pitch In line with player view
+    model.source.rotation[1] += -card.player.angle // Pitch In line with player view
     model.source.translation[1] += 0.025 + 0.05 * count; // 0.05 = depth of card
 
     // Variations in card placement
-    model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
-    model.source.translation[0] += card.randomness * 0.5
-    model.source.translation[2] += card.randomness * 0.5
+    model.source.rotation[1] += (card.randomness - .5) * (Math.PI / 32)
+    model.source.translation[0] += (card.randomness - .5) * .4
+    model.source.translation[2] += (card.randomness - .5) * .4
 
     return model;
   }
@@ -417,7 +417,16 @@ class Scene {
     return model;
   }
 
-  setPickupCardModel() {
+  setPickupCardModel(card, count) {
+    const model = card.model;
+
+    model.source.rotation[0] += Math.PI // Facedown
+    model.source.translation[1] += 0.025 + 0.05 * count; // 0.05 = depth of card
+
+    // Variations in card placement
+    model.source.rotation[1] += (card.randomness - .5) * (Math.PI / 32)
+    model.source.translation[0] += (card.randomness - .5) * .4
+    model.source.translation[2] += (card.randomness - .5) * .4
   }
 
 
@@ -500,6 +509,9 @@ class Scene {
       // Reset TRS and Handle animations
       for (const card of this.getAllCards()) {
         card.model.source.reset();
+
+        card.model.source.scaling = [1.3, 1.3, 1];
+
         card.animate();
       }
 
@@ -574,16 +586,7 @@ class Scene {
       let docCardCount = 0;
       for (const doc of this.pickups) {
         for (const card of doc.cards) {
-          const model = card.model;
-
-          model.source.rotation[0] += Math.PI // Facedown
-          model.source.translation[1] += 0.025 + 0.05 * docCardCount; // 0.05 = depth of card
-
-          // Variations in card placement
-          model.source.rotation[1] += (card.randomness - 0.5) * (Math.PI / 16)
-          model.source.translation[0] += card.randomness * .5
-          model.source.translation[2] += card.randomness * .5
-
+          this.setPickupCardModel(card, docCardCount);
           docCardCount++;
         }
       }
@@ -687,7 +690,7 @@ class Scene {
       if (this.currentId && this.currentId === oldId) {
         const card = allCards.find(val => val.id === this.currentId);
 
-        if (card.player && card.player.mainPlayer) {
+        if (card.player && card.player.mainPlayer && !card.doc) {
           card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
 
           this.canvas.style.cursor = "pointer";
