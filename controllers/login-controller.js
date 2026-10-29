@@ -1,35 +1,38 @@
+import bcrypt from "bcrypt";
 import User from "./../models/user.js";
 
-async function getRoot(req, res) {
-  let loginStatus = "";
-
-  if (req.session.user) {
-    loginStatus = `You are already logged in, ${req.session.user}.`
-  } else if (Math.random() < .5) {
-    let id = 1;
-    let password = "123412341234"; //TODO: Hash password (bcrypt)
-    const userInfo = await User.getUserInfoById(id);
-
-    if (userInfo) {
-      if (userInfo.password === password) {
-        req.session.user = userInfo.name;
-        req.session.userid = userInfo.userid;
-        res.cookie("sessionId", req.sessionID);
-
-        loginStatus = `You have been logged in successfully, ${userInfo.name}.`;
-      } else {
-        loginStatus = "Wrong password."
-      }
-    } else {
-      loginStatus = "No user recorded.";
-    }
-  } else {
-    loginStatus = "You have been randomly rejected.";
-  }
-
-  res.render("login", {
-    loginStatus,
-  });
+function getRoot(req, res) {
+  if (req.session.user) res.redirect("/");
+  else res.render("login");
 }
 
-export { getRoot };
+async function postRoot(req, res) {
+  const email = req.body.email;
+  const password = req.body.password;
+  // const hashedPassword = await bcrypt.hash(password, 1);
+
+  const userInfo = await User.getUserInfoByEmail(email);
+
+  if (userInfo) {
+    const match = await bcrypt.compare(password, userInfo.password);
+    if (match) {
+      req.session.user = userInfo.name;
+      req.session.userID = userInfo.userid;
+      res.cookie("sessionID", req.sessionID);
+
+      res.redirect("/");
+    } else {
+      res.render("login", {
+        email,
+        loginStatus: "Wrong password.",
+      });
+    }
+  } else {
+    // TODO: Redirect to register/signup
+    res.render("login", {
+      loginStatus: "No such user exists.",
+    });
+  }
+}
+
+export { getRoot, postRoot };

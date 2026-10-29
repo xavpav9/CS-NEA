@@ -6,4 +6,12 @@ block head
   script(src="scripts/index.js", defer)
 
 block content
-  h1 #{loginStatus}
+  form(method="post", action="/login")
+    div
+      label(for="email") Email Address:
+      input(type="email", name="email", id="email", value=email)
+    div
+      label(for="password") Password:
+      input(type="password", name="password", id="password")
+    button(type="submit") Submit
+  p= loginStatus

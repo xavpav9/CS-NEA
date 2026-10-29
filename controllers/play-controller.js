@@ -1,8 +1,9 @@
 function get(req, res) {
-  const gameId = req.params.gameId;
+  const gameID = req.params.gameID;
   const username = req.session.user;
+  const userID = req.session.userID;
 
-  console.log(`User '${username}' connected to game number ${gameId}.`);
+  console.log(`User '${username}' (${userID ? "" : "not "}signed in) connected to gameID ${gameID}.`);
 
 
 

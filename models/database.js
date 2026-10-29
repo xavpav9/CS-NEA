@@ -1,4 +1,5 @@
 import { Client, Pool } from "pg";
+import bcrypt from "bcrypt";
 
 const SQL = `
 DROP TABLE IF EXISTS Users;
@@ -7,14 +8,15 @@ CREATE TABLE Users (
   userid BIGSERIAL PRIMARY KEY,
   name VARCHAR(40),
   email VARCHAR(40),
-  password VARCHAR(40)
+  password VARCHAR(80)
 );
-
+`
+const INSERT_USERS = `
 INSERT INTO Users (name, email, password)
 VALUES 
-  ('Alice', 'alice@gmail.com', '123412341234'),
-  ('Bob', 'bob@hotmail.com', '123412341234'),
-  ('Caleb', 'caleb@yahoo.com', '123412341234');
+  ('Alice', 'alice@gmail.com', $1),
+  ('Bob', 'bob@hotmail.com', $1),
+  ('Caleb', 'caleb@yahoo.com', $1);
 `;
 
 const pool = new Pool({
@@ -34,8 +36,11 @@ async function seedDatabase() {
     connectionString: "postgresql://postgres:postgres@localhost:5432/mydb",
   });
 
+  const password = await bcrypt.hash("123412341234", 1);
+
   await client.connect();
   await client.query(SQL);
+  await client.query(INSERT_USERS, [password]);
   await client.end();
   console.log("...database seeded");
 }

@@ -27,12 +27,12 @@ app.set("views", path.join(import.meta.dirname, "views"));
 app.set("view engine", "pug");
 
 // Middleware
+app.use(express.urlencoded({extended: true})); // For POST req.body
 app.use(session({
   secret: crypto.randomUUID(),
   resave: false,
   saveUninitialized: false,
 }));
-
 app.use(cookieParser());
 
 // Routers
@@ -41,7 +41,7 @@ app.use("/login", loginRouter);
 app.use("/logout", logoutRouter);
 app.use("/play", (req, res, next) => {
   if (req.session.user) next();
-  else res.redirect("/");
+  else res.redirect("/login");
 }, playRouter);
 
 
