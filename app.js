@@ -13,12 +13,14 @@ import loginRouter from "./routes/login-router.js";
 import logoutRouter from "./routes/logout-router.js";
 
 import { handleGame } from "./controllers/play-controller.js";
+import { seedDatabase, queryDatabase } from "./controllers/database-controller.js";
 
 const PORT = /*process.env.PORT || */ 8080;
 
-// Express 
+// Initialise Express, Server and Database 
 const app = express();
 const server = createServer(app);
+seedDatabase();
 
 // Settings
 app.use(express.static(path.join(import.meta.dirname, "public")));
@@ -42,7 +44,6 @@ app.use("/play", (req, res, next) => {
   if (req.session.user) next();
   else res.redirect("/");
 }, playRouter);
-
 
 
 // Websockets

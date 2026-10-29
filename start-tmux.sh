@@ -9,9 +9,10 @@ if [ $? -eq 0 ]; then
   tmux attach -t $sessionName
 else
   echo "Creating and attaching to \"$sessionName\"."
-  tmux new-session -ds $sessionName -n "nvim" "nvim"
+  tmux new-session -ds $sessionName -n nvim "nvim"
   tmux new-window -dn bash "bash" 
   tmux new-window -dn server "npm run serverstart" 
   tmux new-window -dn testing "npm run watch"
+  tmux new-window -dn database "su postgres"
   tmux attach -t $sessionName
 fi
