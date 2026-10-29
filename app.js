@@ -4,24 +4,48 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 
-import indexRouter from "./routes/index.js";
-import playRouter from "./routes/play.js";
+import session from "express-session";
+import cookieParser from "cookie-parser";
+
+import indexRouter from "./routes/index-router.js";
+import playRouter from "./routes/play-router.js";
+import loginRouter from "./routes/login-router.js";
+import logoutRouter from "./routes/logout-router.js";
+
+import { handleGame } from "./controllers/play-controller.js";
 
 const PORT = /*process.env.PORT || */ 8080;
 
-
+// Express 
 const app = express();
 const server = createServer(app);
 
+// Settings
 app.use(express.static(path.join(import.meta.dirname, "public")));
 app.set("views", path.join(import.meta.dirname, "views"));
 app.set("view engine", "pug");
 
+// Middleware
+app.use(session({
+  secret: crypto.randomUUID(),
+  resave: false,
+  saveUninitialized: false,
+}));
+
+app.use(cookieParser());
+
+// Routers
 app.use("/", indexRouter);
-app.use("/play", playRouter);
+app.use("/login", loginRouter);
+app.use("/logout", logoutRouter);
+app.use("/play", (req, res, next) => {
+  if (req.session.user) next();
+  else res.redirect("/");
+}, playRouter);
 
 
 
+// Websockets
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", ws => {
@@ -29,7 +53,12 @@ wss.on("connection", ws => {
 
   ws.on("message", data => {
     const message = data.toString();
-    console.log("Message from ws client: ", message);
+
+    if (message === "play") {
+      handleGame(ws);
+    } else {
+      console.log("Message from ws client: ", message);
+    }
   });
 
   ws.on("close", () => {
