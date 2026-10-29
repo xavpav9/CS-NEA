@@ -1,0 +1,17 @@
+extends layout
+  
+block head
+  title Account
+  link(href="/stylesheets/style.css", rel="stylesheet")
+  script(src="scripts/index.js", defer)
+
+block content
+  h1 Account details
+  p Username: #{name}
+  p Email: #{email}
+  p UserID: #{userID}
+
+  form(method="post", action="/account")
+    label(for="name") New Username:
+    input(type="name",  name="name", id="name", value=name)
+    button(type="submit") Submit

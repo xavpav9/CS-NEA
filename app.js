@@ -11,6 +11,7 @@ import playRouter from "./routes/play-router.js";
 import loginRouter from "./routes/login-router.js";
 import registerRouter from "./routes/register-router.js";
 import logoutRouter from "./routes/logout-router.js";
+import accountRouter from "./routes/account-router.js";
 
 import { handleGame } from "./controllers/play-controller.js";
 import { seedDatabase } from "./models/database.js";
@@ -41,6 +42,7 @@ app.use("/", indexRouter);
 app.use("/login", loginRouter);
 app.use("/register", registerRouter);
 app.use("/logout", logoutRouter);
+app.use("/account", accountRouter);
 app.use("/play", (req, res, next) => {
   if (req.session.user) next();
   else res.redirect("/login");
