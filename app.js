@@ -1,5 +1,4 @@
 import path from "node:path";
-import mime from "mime";
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
@@ -13,7 +12,7 @@ import loginRouter from "./routes/login-router.js";
 import logoutRouter from "./routes/logout-router.js";
 
 import { handleGame } from "./controllers/play-controller.js";
-import { seedDatabase, queryDatabase } from "./controllers/database-controller.js";
+import { seedDatabase } from "./models/database.js";
 
 const PORT = /*process.env.PORT || */ 8080;
 
