@@ -1,12 +1,8 @@
 import express from "express";
+import { getRoot } from "./../controllers/logout-controller.js";
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie("sessionID");
-    res.send("You have been successfully logged out.");
-  });
-});
+router.get("/", getRoot);
 
 export default router;

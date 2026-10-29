@@ -9,7 +9,6 @@ function getRoot(req, res) {
 async function postRoot(req, res) {
   const email = req.body.email;
   const password = req.body.password;
-  // const hashedPassword = await bcrypt.hash(password, 1);
 
   const userInfo = await User.getUserInfoByEmail(email);
 
@@ -28,9 +27,9 @@ async function postRoot(req, res) {
       });
     }
   } else {
-    // TODO: Redirect to register/signup
     res.render("login", {
-      loginStatus: "No such user exists.",
+      email,
+      loginStatus: "No such user exists. Register at <a href='/register'>/register</a>.",
     });
   }
 }

@@ -1,0 +1,16 @@
+extends layout
+  
+block head
+  title Login
+  link(href="/stylesheets/style.css", rel="stylesheet")
+
+block content
+  form(method="post", action="/register")
+    div
+      label(for="email") Email Address:
+      input(type="email", name="email", id="email", value=email)
+    div
+      label(for="password") Password:
+      input(type="password", name="password", id="password")
+    button(type="submit") Submit
+  p !{registerStatus}

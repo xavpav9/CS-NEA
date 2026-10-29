@@ -8,14 +8,21 @@ const User = (function() {
   }
 
   async function getUserInfoByEmail(email) {
-    const userInfo = await queryDatabase("SELECT * FROM Users WHERE email = $1;", [email]);
-    if (userInfo && userInfo.rows.length) return userInfo.rows[0];
+    const res = await queryDatabase("SELECT * FROM Users WHERE email = $1;", [email]);
+    if (res && res.rows.length) return res.rows[0];
+    else return false;
+  }
+
+  async function addUser(name, email, hashedPassword) {
+    const res = await queryDatabase("INSERT INTO Users(name, email, password) VALUES ($1, $2, $3);", [name, email, hashedPassword]);
+    if (res) return res;
     else return false;
   }
 
   return {
     getUserInfoById,
     getUserInfoByEmail,
+    addUser,
   };
 })();
 
