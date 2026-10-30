@@ -47,7 +47,7 @@ app.use("/logout", logoutRouter);
 app.use("/account", accountRouter);
 app.use("/join", joinRouter);
 app.use("/play", (req, res, next) => {
-  if (req.session.user) next();
+  if (req.session.gameID) next();
   else res.redirect("/account");
 }, playRouter);
 

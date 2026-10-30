@@ -3,7 +3,6 @@ function get(req, res) {
   const username = req.session.user;
   const userID = req.session.userID;
 
-  console.log(`User '${username}' (${userID ? "" : "not "}signed in) connected to gameID ${gameID}.`);
 
 
 

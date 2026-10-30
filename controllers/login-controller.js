@@ -16,7 +16,7 @@ async function postRoot(req, res) {
     const match = await bcrypt.compare(password, userInfo.password);
     if (match) {
       req.session.user = userInfo.name;
-      req.session.userID = userInfo.userid;
+      req.session.userID = userInfo.user_id;
       res.cookie("sessionID", req.sessionID);
 
       res.redirect("/");
