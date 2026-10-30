@@ -8,6 +8,8 @@ import cookieParser from "cookie-parser";
 
 import indexRouter from "./routes/index-router.js";
 import playRouter from "./routes/play-router.js";
+import joinRouter from "./routes/join-router.js";
+
 import loginRouter from "./routes/login-router.js";
 import registerRouter from "./routes/register-router.js";
 import logoutRouter from "./routes/logout-router.js";
@@ -43,9 +45,10 @@ app.use("/login", loginRouter);
 app.use("/register", registerRouter);
 app.use("/logout", logoutRouter);
 app.use("/account", accountRouter);
+app.use("/join", joinRouter);
 app.use("/play", (req, res, next) => {
   if (req.session.user) next();
-  else res.redirect("/login");
+  else res.redirect("/account");
 }, playRouter);
 
 

@@ -1,0 +1,13 @@
+extends layout
+  
+block head
+  title Hearts
+  link(href="/stylesheets/style.css", rel="stylesheet")
+
+block content
+  h1 Join table
+
+  //- TODO: Change to proper table joins.
+  form(action="/join", method="post")
+    input(type="hidden" name="gameID", value="1")
+    button(type="submit") Join table 1

@@ -8,10 +8,18 @@ block head
 block content
   h1 Account details
   p Username: #{name}
-  p Email: #{email}
-  p UserID: #{userID}
+
+  if (loggedIn)
+    p Email: #{email}
+    p UserID: #{userID}
 
   form(method="post", action="/account")
     label(for="name") New Username:
     input(type="name",  name="name", id="name", value=name)
     button(type="submit") Submit
+
+  if (!loggedIn)
+    p
+      a(href="/login") Login
+    p
+      a(href="/register") Register

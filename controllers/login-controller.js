@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import User from "./../models/user.js";
 
 function getRoot(req, res) {
-  if (req.session.user) res.redirect("/");
+  if (req.session.userID) res.redirect("/");
   else res.render("login");
 }
 
