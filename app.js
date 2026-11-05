@@ -16,6 +16,7 @@ import logoutRouter from "./routes/logout-router.js";
 import accountRouter from "./routes/account-router.js";
 
 import { handleGame } from "./controllers/play-controller.js";
+import { handleJoin } from "./controllers/join-controller.js";
 import { seedDatabase } from "./models/database.js";
 
 const PORT = /*process.env.PORT || */ 8080;
@@ -47,10 +48,9 @@ app.use("/logout", logoutRouter);
 app.use("/account", accountRouter);
 app.use("/join", joinRouter);
 app.use("/play", (req, res, next) => {
-  if (req.session.gameID) next();
+  if (req.session.user) next();
   else res.redirect("/account");
 }, playRouter);
-
 
 // Websockets
 const wss = new WebSocketServer({ server });
@@ -61,10 +61,16 @@ wss.on("connection", ws => {
   ws.on("message", data => {
     const message = data.toString();
 
-    if (message === "play") {
-      handleGame(ws);
-    } else {
-      console.log("Message from a ws client:", message);
+    switch (message) {
+      case "play":
+        handleGame(ws);
+        break;
+      case "join":
+        handleJoin(ws);
+        break;
+      default:
+        // console.log("Message from a ws client:", message);
+        break;
     }
   });
 

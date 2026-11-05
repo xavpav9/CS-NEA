@@ -4,7 +4,7 @@ import bcrypt from "bcrypt";
 const SQL = `
 DROP TABLE IF EXISTS GameUsers;
 DROP TABLE IF EXISTS Users;
-DROP TABLE IF EXISTS CurrentGames;
+DROP TABLE IF EXISTS Games;
 
 CREATE TABLE Users (
   user_id BIGSERIAL PRIMARY KEY,
@@ -13,7 +13,7 @@ CREATE TABLE Users (
   password VARCHAR(80)
 );
 
-CREATE TABLE CurrentGames (
+CREATE TABLE Games (
   game_id BIGINT PRIMARY KEY,
   max_player_count INT,
   current_player_turn INT
@@ -22,7 +22,7 @@ CREATE TABLE CurrentGames (
 CREATE TABLE GameUsers (
   game_user_id BIGSERIAL PRIMARY KEY,
   user_id BIGINT REFERENCES Users(user_id),
-  game_id BIGINT REFERENCES CurrentGames(game_id),
+  game_id BIGINT REFERENCES Games(game_id),
   score INT,
   player_location INT,
   in_use BOOL

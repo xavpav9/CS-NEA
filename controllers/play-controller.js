@@ -3,6 +3,8 @@ function get(req, res) {
   const username = req.session.user;
   const userID = req.session.userID;
 
+  req.session.gameID = gameID;
+
 
 
 
@@ -13,7 +15,7 @@ function handleGame(ws) {
   ws.send("connected");
 
   ws.on("message", () => {
-    console.log("hi");
+    console.log("Received message.");
   });
 
   ws.on("close", () => {
