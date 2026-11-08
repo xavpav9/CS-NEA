@@ -10,8 +10,13 @@ block content
 
   form(id="join-form", action="/join", method="post")
     input(type="hidden", id="game-id", name="gameID", value="1")
-    if gameIDs
-      each gameID, index in gameIDs
-        button(class="join-btn" data-gameid=gameID) Join table #{index + 1}
+    each players, gameID in gameIDs
+      div(class="table", data-gameid=gameID)
+        button(class="join-btn", data-gameid=gameID) Join table #{++index}
+
+        each player in players
+          div(class="player", data-uuid=player.uuid)= player.name
+    if index == 0
+      p No tables
 
   dialog

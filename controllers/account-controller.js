@@ -25,7 +25,10 @@ async function postRoot(req, res) {
   const newName = req.body.name;
   const validName = (newName.length) && (newName.length < 20);
 
-  if (validName) req.session.user = newName;
+  if (validName) {
+    req.session.user = newName;
+    res.cookie("user", newName);
+  }
 
   if (userInfo) { // Valid name and registered user
     if (validName) await User.updateName(userInfo.user_id, newName);

@@ -18,6 +18,7 @@ async function postRoot(req, res) {
       req.session.user = userInfo.name;
       req.session.userID = userInfo.user_id;
       res.cookie("sessionID", req.sessionID);
+      res.cookie("user", req.session.user);
 
       res.redirect("/");
     } else {

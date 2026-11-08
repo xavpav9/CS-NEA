@@ -4,13 +4,22 @@ import GameUser from "./../models/game-user.js";
 import Game from "./../models/game.js";
 
 const TABLE_SIZE = 4;
+new Table(123480);
+new Table(321470234);
+new Table(412023);
 
 function getRoot(req, res) {
   const user = req.session.user;
   const gameID = req.params["gameID"];
+  const gameIDs = {};
+
+  for (const tableID in Table.tables) {
+    gameIDs[tableID] = Table.getPlayers(tableID);
+  }
 
   if (user) res.render("join", {
-    gameIDs: [123480, 321470234, 412023],
+    gameIDs,
+    index: 0,
   });
   else res.redirect("/account");
 }
@@ -52,52 +61,61 @@ function handleJoin(ws) {
   ws.send("connected");
   websockets.push(ws);
 
-  // TODO: Client needs to send their name (and avatar) since websocket cannot access sessions.
-
   ws.on("message", data => {
     const message = data.toString();
-    const gameID = parseInt(message);
-    let table = Table.tables[gameID] || new Table(gameID);
+    const [command, ...args] = message.split(" ");
 
-    if (gameID) {
-      table.addPlayer(ws);
+    console.log(command, args);
 
-      for (const otherTable of Object.values(Table.tables)) {
-        if (otherTable !== table) {
-          if (otherTable.removePlayer(ws)) {
-            ws.send(`remove ${gameID}`);
-            for (const otherWs of websockets) {
-              if (otherWs !== ws) otherWs.send(`otherremove ${gameID}`); // TODO
+    switch (command) {
+      case "table":
+        const gameID = parseInt(args[0]);
+        const name = args[1];
+        let table = Table.tables[gameID] || new Table(gameID);
+
+        if (gameID && name && !table.getPlayer(ws)) {
+          const newPlayer = table.addPlayer(ws, name);
+
+          for (const otherTable of Object.values(Table.tables)) {
+            if (otherTable !== table) {
+              const player = otherTable.getPlayer(ws);
+              if (otherTable.removePlayer(ws)) {
+                ws.send(`remove ${otherTable.id}`);
+                for (const otherWs of websockets) {
+                  if (otherWs !== ws) otherWs.send(`otherremove ${otherTable.id} ${player.uuid}`);
+                }
+                break;
+              }
             }
-            break;
+          }
+
+          if (table.players.length === TABLE_SIZE) {
+            table.ready = true;
+
+            for (const player of table.players) {
+              player.ws.send(`play ${gameID}`);
+            }
+
+            for (const otherWs of websockets) {
+              otherWs.send(`delete ${gameID}`);
+            }
+          } else {
+            ws.send(`join ${gameID} ${newPlayer.uuid}`);
+            for (const otherWs of websockets) {
+              if (otherWs !== ws) otherWs.send(`otherjoin ${gameID} ${newPlayer.uuid} ${newPlayer.name}`);
+            }
           }
         }
-      }
-
-      if (table.players.length === TABLE_SIZE) {
-        table.ready = true;
-
-        for (const otherWs of table.players) {
-          otherWs.send(`play ${gameID}`);
-        }
-
-        for (const otherWs of websockets) {
-          otherWs.send(`delete ${gameID}`);
-        }
-      } else {
-        ws.send(`join ${gameID}`);
-        for (const otherWs of websockets) {
-          if (otherWs !== ws) otherWs.send(`otherjoin ${gameID}`); // TODO
-        }
-      }
+        break;
     }
   });
 
   ws.on("close", () => {
     for (const table of Object.values(Table.tables)) {
+      const player = table.getPlayer(ws);
       if (table.removePlayer(ws)) {
         for (const otherWs of websockets) {
-          if (otherWs !== ws) otherWs.send(`otherremove ${gameID}`); // TODO
+          if (otherWs !== ws) otherWs.send(`otherremove ${table.id} ${player.uuid}`);
         }
         break;
       }
