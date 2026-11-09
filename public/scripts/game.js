@@ -29,29 +29,24 @@ class Deck {
 }
 
 class Game {
-  constructor(canvas, numOfPlayers) {
+  constructor(canvas) {
     this.scene = new Scene(canvas, this);
     this.state = "idle";
-    this.deck = new Deck(this.scene);
-    this.deck.shuffle();
+    this.deck = new Deck(this.scene); // TODO: The deck needs to be moved serverside.
     this.dealt = false;
+    this.selection = [];
 
     this.pickupPile = new Pickup(this.scene, this.deck.cards);
 
     this.players = [];
-    for (let i=0; i<numOfPlayers; ++i) {
-      const mainPlayer = (i===0);
-
-      const player = new Player(this.scene, mainPlayer);
-      player.turn = mainPlayer;
-
-      // player.addTrick(new Trick(this.scene, [new Card(this.scene, "6d")]));
-
-      this.players.push(player);
-    }
 
     this.scene.setPickup(this.pickupPile);
     this.scene.render();
+  }
+
+  addPlayer(side, mainPlayer) {
+    if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer));
+    else if (side === "back") this.players.push(new Player(this.scene, mainPlayer));
   }
 
   deal() {
@@ -72,59 +67,56 @@ class Game {
   setState(state) {
     this.state = state;
   }
+
+  getCardSelection() {
+    return this.selection;
+  }
+
+  passCards(cardTypes, cardIndices) {
+    const cardsArr = [];
+    const nextPlayerArr = [];
+    const newCardInxsArr = []; // The indices of where the cards should go
+    const numOfCardsArr = [];
+
+    // Collect destination data
+    this.players.forEach((player, inx) => {
+      const nextPlayer = this.players[(inx + 1) % this.players.length];
+      const cards = player.cards.filter((card, cardInx) => cardIndices.slice(inx*3, (inx+1)*3).includes(cardInx));
+
+      cardsArr.push(cards);
+      nextPlayerArr.push(nextPlayer);
+      newCardInxsArr.push(cardIndices.slice(
+        ((inx + 1) * 3) % cardIndices.length,
+        ((inx + 2) * 3 === cardIndices.length) ? cardIndices.length : ((inx + 2) * 3) % cardIndices.length,
+      ));
+
+      numOfCardsArr.push(nextPlayer.cards.length);
+    });
+
+    // Pass cards to correct destinations
+    this.players.forEach((player, inx) => {
+      player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx], numOfCardsArr[inx]);
+    });
+  }
   
   click(card) {
     switch (this.state) {
       case "idle":
+        /* For offline play
         if (card.doc === this.pickupPile) {
           this.deal();
 
-          // TODO: Set correct player turn
           this.players.find(player => player.mainPlayer).turn = true;
           this.setState("start");
         }
+        */
         break;
       case "start": // Select 3 cards to give to an opponent
-        if (card.player) {
-          const selection = this.scene.stateStart(card);
-
-          // TODO: This condition should be when player chooses to pass cards
-          if (selection.length === 3) {
-            card.player.threeCardsSelected = true;
-
-            if (this.players.every(player => player.threeCardsSelected)) {
-              const cardsArr = [];
-              const nextPlayerArr = [];
-              const newCardInxsArr = []; // The indices of where the cards should go
-
-              // Collect destination data
-              this.players.forEach((player, inx) => {
-                const nextPlayer = this.players[(inx + 1) % this.players.length];
-                const cards = player.cards.filter(card => card.getAnimationType() === "upstick");
-                cardsArr.push(cards);
-                nextPlayerArr.push(nextPlayer);
-                newCardInxsArr.push([]);
-
-                nextPlayer.cards.forEach((card, cardInx) => {
-                  if (card.getAnimationType() === "upstick") {
-                    newCardInxsArr[inx].push(cardInx);
-                  }
-                });
-              });
-
-              // Pass cards to correct destinations
-              this.players.forEach((player, inx) => {
-                player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx]);
-                player.threeCardsSelected = false;
-              });
-            }
-          } else {
-            card.player.threeCardsSelected = false;
-          }
-        }
+        if (card.player) this.selection = this.scene.setStartAnimation(card);
 
         break;
       case "main":
+        // TODO: Set up main game logic serverside.
         if (card.player && card.player.mainPlayer && card.player.turn) {
           card.player.turn = false;
           card.player.playCard(card);

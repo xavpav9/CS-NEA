@@ -94,14 +94,8 @@ class Scene {
     })();
   }
 
-  /* TODO
-   * Animations: - Activated from player objects
-   * pickUpCard(player, card);
-   * placeDownCard(player, card);
-   * changeGameState(number); // What the player should be doing (e.g. waiting, playing, selecting 3 cards, etc.)
-   */
 
-  stateStart(card) {
+  setStartAnimation(card) {
     const player = card.player;
 
     if (player) {
@@ -353,7 +347,7 @@ class Scene {
 
 
   // Card goes to another player
-  passCard(card, otherPlayer, newCardInx, animationCallback) {
+  passCard(card, otherPlayer, newCardInx, numOfCards, animationCallback) {
     card.player = null;
     // Position when in player's hand from origin
     const startPosition = card.model.worldMatrix.slice(12,15);
@@ -361,7 +355,7 @@ class Scene {
     // Position when in newPlayer's hand from origin
     card.model.setParent(otherPlayer.model);
     card.model.source.reset();
-    this.setPlayerCardModel(card, 13, newCardInx);
+    this.setPlayerCardModel(card, numOfCards, newCardInx);
     this.origin.updateWorldMatrix();
 
     const endPosition = card.model.worldMatrix.slice(12, 15);
@@ -383,7 +377,7 @@ class Scene {
 
     // New position from player
     card.model.source.reset();
-    this.setPlayerCardModel(card, 13, newCardInx);
+    this.setPlayerCardModel(card, card.player.cards.length, newCardInx);
 
     const startPosition = card.model.source.translation.slice();
 

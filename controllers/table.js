@@ -9,7 +9,7 @@ class Player {
 class Table {
   constructor(id) {
     this.id = id;
-    this.players = []; // Websocket of the player
+    this.players = [];
 
     Table.tables[id] = this;
   }

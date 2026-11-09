@@ -65,13 +65,11 @@ function handleJoin(ws) {
     const message = data.toString();
     const [command, ...args] = message.split(" ");
 
-    console.log(command, args);
-
     switch (command) {
       case "table":
         const gameID = parseInt(args[0]);
         const name = args[1];
-        let table = Table.tables[gameID] || new Table(gameID);
+        const table = Table.tables[gameID] || new Table(gameID);
 
         if (gameID && name && !table.getPlayer(ws)) {
           const newPlayer = table.addPlayer(ws, name);

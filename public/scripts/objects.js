@@ -353,7 +353,6 @@ class Player {
 
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.turn = false; // Whether it is this players current turn
-    this.threeCardsSelected = false;
     this.sorting = false; // Whether players cards are currently being sorted or not.
 
     // Rendering attributes
@@ -401,9 +400,9 @@ class Player {
     this.scene.playCard(card);
   }
 
-  passCards(cards, otherPlayer, newCardInxs) { // Cards go to another player
+  passCards(cards, otherPlayer, newCardInxs, numOfCards) { // Cards go to another player
     cards.forEach((card, inx) => {
-      this.scene.passCard(card, otherPlayer, newCardInxs[inx], (animation) => {
+      this.scene.passCard(card, otherPlayer, newCardInxs[inx], numOfCards, (animation) => {
         card.setAnimation(null);
         card.animationPosition = [0, 0, 0];
 

@@ -51,7 +51,6 @@ const WebsocketHandler = (function() {
   const gameIDInput = document.querySelector("#game-id");
   let connected = false;
 
-  console.log(document.cookie.split(";"));
   let name = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "user")[1];
   let uuid = null;
 

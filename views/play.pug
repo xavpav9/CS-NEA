@@ -6,4 +6,5 @@ block head
   script(src="/scripts/play.js", type="module", defer)
 
 block content
-  canvas#c
+  canvas#c(data-gameid=gameID)
+  button#send-cards Send Cards

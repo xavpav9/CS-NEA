@@ -22,7 +22,6 @@ async function postRoot(req, res) {
 
   await User.addUser("Player", email, hashedPassword);
   const userInfo = await User.getUserInfoByEmail(email);
-  console.log("u", userInfo);
 
   req.session.user = userInfo.name;
   req.session.userID = userInfo.user_id;
