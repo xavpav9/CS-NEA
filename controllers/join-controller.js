@@ -1,12 +1,12 @@
 import Table from "./table.js";
+import GameLogic from "./game.js";
 import User from "./../models/user.js";
 import GameUser from "./../models/game-user.js";
 import Game from "./../models/game.js";
 
-const TABLE_SIZE = 4;
-new Table(123480);
-new Table(321470234);
-new Table(412023);
+const TABLE_SIZE = 1;
+const MAX_GAME_ID = 1_000_000_000_000;
+for (let i=0; i<3; ++i) new Table(generateGameID());
 
 function getRoot(req, res) {
   const user = req.session.user;
@@ -55,6 +55,16 @@ async function postRoot(req, res) {
   }
 }
 
+function generateGameID() {
+  let gameID;
+  const currentGameIDs = Object.keys(Table.tables).concat(Object.keys(GameLogic.games)).map(num => parseInt(num)); // TODO: Get this information from the database when fully set up (for past games).
+  do {
+   gameID = Math.floor(Math.random() * MAX_GAME_ID);
+  } while (currentGameIDs.includes(gameID));
+
+  return gameID;
+}
+
 const websockets = [];
 
 function handleJoin(ws) {
@@ -90,12 +100,15 @@ function handleJoin(ws) {
           if (table.players.length === TABLE_SIZE) {
             table.ready = true;
 
+            const newTable = new Table(generateGameID());
+
             for (const player of table.players) {
               player.ws.send(`play ${gameID}`);
             }
 
             for (const otherWs of websockets) {
               otherWs.send(`delete ${gameID}`);
+              otherWs.send(`new ${newTable.id}`);
             }
           } else {
             ws.send(`join ${gameID} ${newPlayer.uuid}`);

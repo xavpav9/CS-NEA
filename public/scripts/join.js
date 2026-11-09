@@ -21,15 +21,22 @@ const DomHandler = (function() {
     if (player) player.remove();
   }
 
+  function updateTableIndices() {
+    let index = 0;
+
+    for (const table of document.querySelectorAll(".table")) {
+      table.querySelector(".join-btn").textContent = `Join table ${++index}`;
+    }
+
+    return index;
+  }
+
   function deleteTable(gameID) {
     const tables = [...document.querySelectorAll(".table")];
     const table = tables.find(table => table.dataset.gameid);
     if (table) {
       table.remove();
-      let index = 0;
-      for (const otherTable of document.querySelectorAll(".table")) {
-        otherTable.querySelector(".join-btn").textContent = `Join table ${++index}`;
-      }
+      const index = updateTableIndices();
 
       if (index === 0) {
         const para = document.createElement("p");
@@ -39,10 +46,26 @@ const DomHandler = (function() {
     }
   }
 
+  function newTable(gameID) {
+    const div = document.createElement("div");
+    div.classList.add("table");
+    div.dataset.gameid = gameID;
+
+    const btn = document.createElement("btn");
+    btn.classList.add("join-btn");
+    btn.dataset.gameid = gameID;
+
+    div.appendChild(btn);
+    form.appendChild(div);
+
+    updateTableIndices();
+  }
+
   return {
     addPlayer,
     removePlayer,
     deleteTable,
+    newTable,
   };
 })();
 
@@ -105,6 +128,10 @@ const WebsocketHandler = (function() {
 
         DomHandler.deleteTable(gameID);
         break;
+      case "new":
+        gameID = parseInt(args[0]);
+
+        DomHandler.newTable(gameID);
     }
   });
 
