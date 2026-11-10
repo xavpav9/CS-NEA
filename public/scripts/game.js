@@ -16,13 +16,14 @@ class Deck {
   ];
 
   setPlayerCards(playerIndex, numOfPlayers, newCards) {
-    // Top card is at index -1
+    // Set the textures on the cards the player is about to receive.
+    // Note: Top card is at index -1.
     let currentCardInx = 0;
     for (let i=this.cards.length; i>0; --i) {
-      if (i % numOfPlayers === playerIndex) {
+      if ((this.cards.length - i) % numOfPlayers === playerIndex && newCards[currentCardInx]) {
         const oldCard = this.cards[i-1];
         const doc = oldCard.doc;
-        doc.removeCard(oldCard);
+        doc.removeCard(oldCard, false);
 
         const newCard = new Card(this.scene, newCards[currentCardInx]);
         this.cards[i-1] = newCard;
@@ -83,7 +84,7 @@ class Game {
     return this.selection;
   }
 
-  passCards(cardTypes, cardIndices) {
+  passCardSelection(cardTypes, cardIndices) {
     const cardsArr = [];
     const nextPlayerArr = [];
     const newCardInxsArr = []; // The indices of where the cards should go
@@ -92,7 +93,23 @@ class Game {
     // Collect destination data
     this.players.forEach((player, inx) => {
       const nextPlayer = this.players[(inx + 1) % this.players.length];
-      const cards = player.cards.filter((card, cardInx) => cardIndices.slice(inx*3, (inx+1)*3).includes(cardInx));
+      const playerCardIndices = cardIndices.slice(inx*3, (inx+1)*3)
+      const cards = player.cards.filter((card, cardInx) => playerCardIndices.includes(cardInx));
+
+
+      if (nextPlayer.mainPlayer) {
+        // Set values of player cards
+        cards.forEach((card, cardInx) => {
+          player.removeCard(card, false);
+
+          // Create new card, and set model matrix for animation
+          const newCard = new Card(this.scene, cardTypes[cardInx]);
+          player.addCard(newCard, playerCardIndices[cardInx]);
+          this.scene.setPlayerCardModel(newCard, player.cards.length, playerCardIndices[cardInx]);
+
+          cards[cardInx] = newCard;
+        });
+      }
 
       cardsArr.push(cards);
       nextPlayerArr.push(nextPlayer);

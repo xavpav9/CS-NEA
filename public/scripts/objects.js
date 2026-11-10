@@ -299,20 +299,13 @@ class DOC { // Deck of Cards
     this.scene.addDocCard(card);
   }
 
-  removeCard(card) {
+  removeCard(card, keepModel=true) {
     if (this.cards.includes(card)) {
+      card.doc = null;
       this.cards.splice(this.cards.indexOf(card), 1);
       this.scene.removeDocCard(card);
-      this.scene.removeModel(card.model);
+      if (!keepModel) this.scene.removeModel(card.model);
     }
-  }
-
-  changeCard(newCard, index) {
-    const oldCard = this.cards[index + 1];
-    if (oldCard) this.removeCard(oldCard);
-
-    this.addCard(newCard, index);
-    
   }
 }
 
@@ -398,11 +391,12 @@ class Player {
     this.scene.addPlayerCard(card)
   }
 
-  removeCard(card) {
+  removeCard(card, keepModel=true) {
     if (this.cards.includes(card)) {
       card.player = null;
       this.cards.splice(this.cards.indexOf(card), 1);
       this.scene.removePlayerCard(card);
+      if (!keepModel) this.scene.removeModel(card.model);
     }
   }
 

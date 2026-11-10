@@ -53,7 +53,7 @@ function handleGame(ws) {
                   player.ws.send(`deal ${cards.filter((card, inx) => inx % maxPlayerCount === player.index).join(" ")}`);
                   player.ws.send("start");
                   game.state = "start";
-                }, 50);
+                }, 500);
                 playerIndex++;
               }
 
@@ -69,15 +69,16 @@ function handleGame(ws) {
           game.getPlayer(ws).selectionIndices = args.slice(3, 6);
 
           if (game.state === "start" && game.players.every(player => player.selectionCards.length === 3)) {
-            const allSelectionCards = [];
             const allSelectionIndices = [];
             for (const player of game.players) {
-              allSelectionCards.push(...player.selectionCards);
               allSelectionIndices.push(...player.selectionIndices);
             }
 
             for (const player of game.players) {
-              player.ws.send(`passcards ${allSelectionCards.join(' ')} ${allSelectionIndices.join(' ')}`);
+              let previousPlayerIndex = player.index - 1;
+              if (previousPlayerIndex < 0) previousPlayerIndex += game.players.length;
+
+              player.ws.send(`passcards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${allSelectionIndices.join(' ')}`);
               player.ws.send("main");
             }
 

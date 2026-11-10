@@ -1,7 +1,6 @@
 import Game from "./game.js";
 
 // TODO:
-//  - Setup the card model textures when receiving the "selection" command (currently, cards are blank). 
 //  - Add sort cards button.
 //  - Send animations so that other players can see them.
 
@@ -49,6 +48,7 @@ const WebsocketHandler = (function() {
         case "connected":
           break;
         case "deal":
+          // args = cards dealt to player
           game.setMainPlayerCards(args);
           const interval = setInterval(() => {
             if (game.pickupPile.cards.every(card => card.model.ready)) {
@@ -68,9 +68,10 @@ const WebsocketHandler = (function() {
           game.setState("idle");
           break;
         case "passcards":
-          const cardTypes = args.slice(0, args.length/2);
-          const cardIndices = args.slice(args.length/2).map(num => parseInt(num));
-          game.passCards(cardTypes, cardIndices);
+          // args = 3 cards being passed to player, then all the player indices for animation
+          const cardTypes = args.slice(0, 3);
+          const cardIndices = args.slice(3).map(num => parseInt(num));
+          game.passCardSelection(cardTypes, cardIndices);
           break;
         case "playerbefore":
           game.addPlayer("front", false);
