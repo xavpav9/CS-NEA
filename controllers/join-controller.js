@@ -4,7 +4,7 @@ import User from "./../models/user.js";
 import GameUser from "./../models/game-user.js";
 import Game from "./../models/game.js";
 
-const TABLE_SIZE = 1;
+const TABLE_SIZE = 2;
 const MAX_GAME_ID = 1_000_000_000_000;
 for (let i=0; i<3; ++i) new Table(generateGameID());
 

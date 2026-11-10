@@ -390,7 +390,7 @@ class Scene {
 
 
   removeModel(model) {
-    if (this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
+    model.toBeRemoved = true;
   }
 
 
@@ -724,7 +724,8 @@ class Scene {
 
       // Draw models to canvas
       for (const model of this.models) {
-        if (model.ready && model.rendering) {
+        if (model.toBeRemoved && this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
+        else if (model.ready && model.rendering) {
           if (model.type === "card") {
             this.gl.enable(this.gl.CULL_FACE);
             this.gl.cullFace(this.gl.BACK);

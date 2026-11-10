@@ -3,15 +3,15 @@ class Player {
     this.ws = ws;
     this.uuid = uuid;
     this.name = name;
+    this.index = null; // Index in game order
     this.selectionCards = [];
     this.selectionIndices = []; // For animations
   }
 }
 
 class Deck {
-  constructor(scene) {
-    this.scene = scene;
-    this.cards = Deck.types.map(type => new Card(this.scene, type));
+  constructor() {
+    this.cards = Deck.types.slice();
   }
 
   static types = [
@@ -32,14 +32,19 @@ class Deck {
       this.cards.splice(j, 1, card);
     }
   }
+
+  empty() {
+    this.cards = [];
+  }
 }
 
 class GameLogic {
   constructor(id) {
-    // TODO: The deck needs to be moved serverside.
     this.id = id;
     this.players = [];
     this.state = "idle";
+    this.deck = new Deck();
+    this.deck.shuffle();
 
     GameLogic.games[id] = this;
   }

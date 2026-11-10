@@ -1,5 +1,10 @@
 import Game from "./game.js";
 
+// TODO:
+//  - Setup the card model textures when receiving the "selection" command (currently, cards are blank). 
+//  - Add sort cards button.
+//  - Send animations so that other players can see them.
+
 const canvas = document.querySelector("#c");
 const game = new Game(canvas, 4);
 
@@ -44,7 +49,13 @@ const WebsocketHandler = (function() {
         case "connected":
           break;
         case "deal":
-          game.deal();
+          game.setMainPlayerCards(args);
+          const interval = setInterval(() => {
+            if (game.pickupPile.cards.every(card => card.model.ready)) {
+              game.deal(); // Load models
+              clearInterval(interval);
+            }
+          }, 500);
           break;
         case "start":
           sendCardsBtn.style.display = "inline-block";

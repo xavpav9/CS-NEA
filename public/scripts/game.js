@@ -5,7 +5,7 @@ import {Model, Card, Player, Pickup, Trick} from "./objects.js";
 class Deck {
   constructor(scene) {
     this.scene = scene;
-    this.cards = Deck.types.map(type => new Card(this.scene, type));
+    this.cards = Deck.types.map(type => new Card(this.scene, "blank"));
   }
 
   static types = [
@@ -15,15 +15,21 @@ class Deck {
     "1s", "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s", "10s", "js", "qs", "ks",
   ];
 
-  shuffle() {
-    const deckLength = this.cards.length;
-    for (let i=0; i<deckLength; ++i) {
-      const j = Math.floor(Math.random() * deckLength)
-      const card = this.cards[i];
-      const otherCard = this.cards[j];
+  setPlayerCards(playerIndex, numOfPlayers, newCards) {
+    // Top card is at index -1
+    let currentCardInx = 0;
+    for (let i=this.cards.length; i>0; --i) {
+      if (i % numOfPlayers === playerIndex) {
+        const oldCard = this.cards[i-1];
+        const doc = oldCard.doc;
+        doc.removeCard(oldCard);
 
-      this.cards.splice(i, 1, otherCard);
-      this.cards.splice(j, 1, card);
+        const newCard = new Card(this.scene, newCards[currentCardInx]);
+        this.cards[i-1] = newCard;
+        doc.addCard(newCard, i-1);
+
+        currentCardInx++;
+      }
     }
   }
 }
@@ -32,7 +38,7 @@ class Game {
   constructor(canvas) {
     this.scene = new Scene(canvas, this);
     this.state = "idle";
-    this.deck = new Deck(this.scene); // TODO: The deck needs to be moved serverside.
+    this.deck = new Deck(this.scene);
     this.dealt = false;
     this.selection = [];
 
@@ -47,6 +53,11 @@ class Game {
   addPlayer(side, mainPlayer) {
     if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer));
     else if (side === "back") this.players.push(new Player(this.scene, mainPlayer));
+  }
+
+  setMainPlayerCards(cards) {
+    const mainPlayerIndex = this.players.indexOf(this.players.find(player => player.mainPlayer));
+    this.deck.setPlayerCards(mainPlayerIndex, this.players.length, cards);
   }
 
   deal() {

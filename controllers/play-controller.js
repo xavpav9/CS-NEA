@@ -45,13 +45,19 @@ function handleGame(ws) {
             }
 
             if (maxPlayerCount === game.players.length) {
+              let playerIndex = 0;
+              const cards = game.deck.cards.slice();
               for (const player of game.players) {
+                player.index = playerIndex;
                 setTimeout(() => {
-                  player.ws.send("deal");
+                  player.ws.send(`deal ${cards.filter((card, inx) => inx % maxPlayerCount === player.index).join(" ")}`);
                   player.ws.send("start");
                   game.state = "start";
-                }, 4000);
+                }, 50);
+                playerIndex++;
               }
+
+              game.deck.empty();
             }
           }
         }

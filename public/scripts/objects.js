@@ -85,6 +85,7 @@ class Model extends Node { // 3D Model
     this.ready = false; // Whether Buffers/vaos/uniforms have been setup
     this.startRendering = false; // Should this model be rendered starting from the next frame
     this.rendering = false; // Should this model be rendered
+    this.toBeRemoved = false; // Remove model on next frame
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -130,7 +131,7 @@ class Model extends Node { // 3D Model
 
   static geometryCache = {};
   async parseGeometry(file, atlasTexcoords=null) { // obj files only
-    const key = JSON.stringify(file);
+    const key = JSON.stringify([file, atlasTexcoords]);
     if (Model.geometryCache[key]) return Model.geometryCache[key];
 
     const geometry = {
@@ -208,10 +209,9 @@ class Card {
     this.id = id; // picking id
     id++;
 
-    const texcoords = this.getTexcoords(this.type);
-    const blank = this.getTexcoords("blank");
     const back = this.getTexcoords("back");
-    this.model = new Model("card", Card.geometryFile, Card.textureFile, [(texcoords) ? texcoords : blank, back]);
+    const texcoords = this.getTexcoords(this.type);
+    this.model = new Model("card", Card.geometryFile, Card.textureFile, [texcoords, back]);
   }
 
   static geometryFile = "card.obj";
@@ -253,9 +253,11 @@ class Card {
     // 1989x895, 11px gap between images (and at top and bottom)
     const pixelX = 1/1989;
     const pixelY = 1/895;
+    const blank = [[pixelX*7, pixelX*10], [0, pixelY*10]];
+    const back = [[0, pixelX*5], [0, pixelY*10]];
 
-    if (type === "blank") return [[0, 0], [0, 0]];
-    else if (type === "back") return [[0, pixelX], [0, pixelY]];
+    if (type === "blank") return blank;
+    else if (type === "back") return back;
 
     const gapX = pixelX * 11;
     const gapY = pixelY * 11;
@@ -268,6 +270,8 @@ class Card {
 
     const x = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k"].indexOf(num)/13;
     const y = ["h", "d", "c", "s"].indexOf(suit)/4;
+
+    if (x < 0 || y < 0) return blank;
 
     return [
       [x + gapX, x + cardWidth],
@@ -287,11 +291,28 @@ class DOC { // Deck of Cards
     cards.forEach(card => this.addCard(card));
   }
 
-  addCard(card) {
+  addCard(card, index=-1) {
     card.doc = this;
-    this.cards.push(card);
+    if (index === -1) this.cards.push(card);
+    else this.cards.splice(index, 0, card);
 
     this.scene.addDocCard(card);
+  }
+
+  removeCard(card) {
+    if (this.cards.includes(card)) {
+      this.cards.splice(this.cards.indexOf(card), 1);
+      this.scene.removeDocCard(card);
+      this.scene.removeModel(card.model);
+    }
+  }
+
+  changeCard(newCard, index) {
+    const oldCard = this.cards[index + 1];
+    if (oldCard) this.removeCard(oldCard);
+
+    this.addCard(newCard, index);
+    
   }
 }
 
