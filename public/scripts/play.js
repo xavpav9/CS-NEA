@@ -1,7 +1,6 @@
 import Game from "./game.js";
 
 // TODO:
-//  - Add sort cards button.
 //  - Send animations so that other players can see them.
 
 const canvas = document.querySelector("#c");
@@ -11,13 +10,26 @@ const websocket = new WebSocket("ws://127.0.0.1:8080/play"); // localhost
 
 const DomHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
-  sendCardsBtn.style.display = "none";
+  const sortCardsBtn = document.querySelector("#sort-cards");
+  hideSendCardsBtn();
 
-  return {};
+  function hideSendCardsBtn() {
+    sendCardsBtn.style.display = "none";
+  }
+
+  function showSendCardsBtn() {
+    sendCardsBtn.style.display = "inline-block";
+  }
+
+  return {
+    hideSendCardsBtn,
+    showSendCardsBtn,
+  };
 })();
 
 const WebsocketHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
+  const sortCardsBtn = document.querySelector("#sort-cards");
   let name = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "user")[1];
   let uuid = null;
   let connected = false;
@@ -31,6 +43,10 @@ const WebsocketHandler = (function() {
       let cardIndices = game.players.find(player => player.mainPlayer).cards.map((card, inx) => (cardTypes.includes(card.type)) ? inx : -1).filter(val => val !== -1).join(" ");
       websocket.send(`selection ${cardTypes} ${cardIndices}`);
     }
+  });
+
+  sortCardsBtn.addEventListener("click", evt => {
+    game.sortMainPlayerCards();
   });
 
   websocket.addEventListener("open", () => {
@@ -58,7 +74,7 @@ const WebsocketHandler = (function() {
           }, 500);
           break;
         case "start":
-          sendCardsBtn.style.display = "inline-block";
+          DomHandler.showSendCardsBtn();
           game.setState("start");
           break;
         case "main":

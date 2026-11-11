@@ -56,6 +56,11 @@ class Game {
     else if (side === "back") this.players.push(new Player(this.scene, mainPlayer));
   }
 
+  sortMainPlayerCards() {
+    const mainPlayer = this.players.find(player => player.mainPlayer);
+    if (mainPlayer) mainPlayer.sortCards();
+  }
+
   setMainPlayerCards(cards) {
     const mainPlayerIndex = this.players.indexOf(this.players.find(player => player.mainPlayer));
     this.deck.setPlayerCards(mainPlayerIndex, this.players.length, cards);
