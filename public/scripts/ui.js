@@ -98,7 +98,7 @@ class Scene {
   setStartAnimation(card) {
     const player = card.player;
 
-    if (player) {
+    if (player && player.mainPlayer) {
       // Keep card in air when clicked, and go down when clicked again.
       if (card.getAnimationType() === "up" || card.getAnimationType() === null) {
         // Max 3 cards up at once.

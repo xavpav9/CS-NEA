@@ -21,26 +21,29 @@ function handleGame(ws) {
   ws.send("connected");
 
   ws.on("message", async data => {
+    let game;
     const message = data.toString();
     const [command, ...args] = message.split(" ");
 
+    // console.log(command, args);
     switch (command) {
       case "game":
         const gameID = parseInt(args[0]);
         const name = args[1];
 
         if (gameID && name) {
-          const game = GameLogic.games[gameID] || new GameLogic(gameID);
+          game = GameLogic.games[gameID] || new GameLogic(gameID);
           const gameInfo = await Game.getGameInfoByID(gameID);
           const maxPlayerCount = gameInfo.max_player_count;
 
           if (gameInfo && !game.getPlayer(ws) && game.players.length < maxPlayerCount) {
             const newPlayer = game.addPlayer(ws, name);
 
+            ws.send(`player-uuid ${newPlayer.uuid}`);
             for (const otherPlayer of game.players) {
               if (otherPlayer !== newPlayer) {
-                ws.send(`playerbefore ${otherPlayer.uuid} ${otherPlayer.name}`);
-                otherPlayer.ws.send(`playerafter ${newPlayer.uuid} ${newPlayer.name}`);
+                ws.send(`player-before ${otherPlayer.uuid} ${otherPlayer.name}`);
+                otherPlayer.ws.send(`player-after ${newPlayer.uuid} ${newPlayer.name}`);
               }
             }
 
@@ -63,7 +66,7 @@ function handleGame(ws) {
         }
         break;
       case "selection":
-        const game = GameLogic.getGameFromPlayer(ws);
+        game = GameLogic.getGameFromPlayer(ws);
         if (game) {
           game.getPlayer(ws).selectionCards = args.slice(0, 3);
           game.getPlayer(ws).selectionIndices = args.slice(3, 6);
@@ -78,13 +81,38 @@ function handleGame(ws) {
               let previousPlayerIndex = player.index - 1;
               if (previousPlayerIndex < 0) previousPlayerIndex += game.players.length;
 
-              player.ws.send(`passcards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${allSelectionIndices.join(' ')}`);
+              player.ws.send(`pass-cards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${allSelectionIndices.join(' ')}`);
               player.ws.send("main");
             }
 
             game.state = "main";
           }
         }
+        break;
+      case "card-animation":
+        game = GameLogic.getGameFromPlayer(ws);
+        if (game) {
+          const animationJSON = args[0];
+          const playerUUID = args[1];
+          const cardInx = args[2];
+          for (const otherPlayer of game.players) {
+            if (otherPlayer.ws !== ws) {
+              otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${cardInx}`);
+            }
+          }
+        }
+        break;
+      case "card-animation-reverse":
+        game = GameLogic.getGameFromPlayer(ws);
+        if (game) {
+          const animationID = args[0];
+          for (const otherPlayer of game.players) {
+            if (otherPlayer.ws !== ws) {
+              otherPlayer.ws.send(`card-animation-reverse ${animationID}`);
+            }
+          }
+        }
+        break;
       case "main":
         // TODO: Main game logic
         break;

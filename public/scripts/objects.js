@@ -1,4 +1,5 @@
 import {m4} from "./linear-algebra.js";
+import { WebsocketHandler } from "./play.js";
 
 let id = 1; // id=0 is when nothing is selected
 
@@ -203,6 +204,7 @@ class Card {
     this.player = null;
     this.doc = null;
     this.animation = null;
+    this.animationFromClient = true; // Whether the animation is clientside, or the server has sent it.
     this.randomness = Math.random(); // A constant random number for variation in card placement
     this.animationPosition = [0, 0, 0]; // A position being used for an animation
 
@@ -217,11 +219,13 @@ class Card {
   static geometryFile = "card.obj";
   static textureFile = "card-atlas.png";
 
-  setAnimation(animation, force=false) {
+  setAnimation(animation, force=false, animationFromClient=true) {
+    this.animationFromClient = animationFromClient;
     if (animation === null) {
       this.animation = null;
     } else if (force || this.animation === null || animation.priority > this.animation.priority) {
       this.animation = animation;
+      if (this.animationFromClient) WebsocketHandler.sendCardAnimation(animation, this);
     }
   }
 
@@ -234,6 +238,7 @@ class Card {
   reverseAnimation(...types) {
     if (this.animation && types.includes(this.animation.type)) {
       this.animation.reverse();
+      if (this.animationFromClient) WebsocketHandler.sendCardAnimation(this.animation, this, true);
     }
   }
 
@@ -243,6 +248,10 @@ class Card {
 
   getAnimationType() {
     return (this.animation) ? this.animation.type : null;
+  }
+
+  getAnimationID() {
+    return (this.animation) ? this.animation.id : null;
   }
 
   getAnimationStart() {
@@ -359,11 +368,14 @@ class Discard extends DOC {
 }
 
 class Player {
-  constructor(scene, mainPlayer) {
+  constructor(scene, mainPlayer, uuid, name) {
     this.scene = scene;
     this.cards = [];
     this.tricks = [];
     this.discard = new Discard(this.scene);
+
+    this.uuid = uuid;
+    this.name = name;
 
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.turn = false; // Whether it is this players current turn
@@ -479,16 +491,22 @@ class Player {
 }
 
 class Animation { // Information about an animation currently taking place.
-  constructor(type, time, currentTime=0, customTranslation=[0,0,0], callback=null) { // time/ms
+  constructor(type, time, currentTime=0, customTranslation=[0,0,0], callback=null, id=null) { // time/ms
     // type could be changing a game state, placing a card, declaring the winner etc.
     this.reversed = false;
     this.type = type;
+    this.id = id ?? Math.floor(Math.random() * 1_000_000_000_000);
     this.customTranslation = customTranslation;
     this.callback = callback;
 
     this.maxTime = time;
+    this.currentTime = currentTime; // Storing this for createAnimation();
     this.start = Date.now() - currentTime;
     this.priority = Animation.priorityScale[type]; // Higher = more priority (1+);
+  }
+
+  static createAnimation(ao) { // ao (animationObj) is what the websocket sends for an animation
+    return new Animation(ao.type, ao.maxTime, ao.currentTime, ao.customTranslation, null, ao.id);
   }
 
   static priorityScale = {

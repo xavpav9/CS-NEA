@@ -1,7 +1,11 @@
 import Game from "./game.js";
 
 // TODO:
-//  - Send animations so that other players can see them.
+//  - Fix animation issues. These include:
+//    > Sorting cards after selection removes upstick animation.
+//    > Cards can still have upstick after they have been sent to next player.
+//    > When hovering at bottom of card, it jitters.
+//  - Fix any issues with reloading the page whilst still in a game.
 
 const canvas = document.querySelector("#c");
 const game = new Game(canvas, 4);
@@ -54,15 +58,19 @@ const WebsocketHandler = (function() {
     websocket.send("play");
     console.log("Connected to server.");
     websocket.send(`game ${canvas.dataset.gameid} ${name}`);
-    game.addPlayer("back", true);
+    game.addPlayer("back", true, null, name);
 
     websocket.addEventListener("message", evt => {
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID;
       const [command, ...args] = evt.data.split(" ");
 
-      console.log(command, args);
+      // console.log(command, args);
       switch (command) {
         case "connected":
           break;
+        case "player-uuid":
+          uuid = args[0];
+          game.setMainPlayerUUID(uuid);
         case "deal":
           // args = cards dealt to player
           game.setMainPlayerCards(args);
@@ -83,21 +91,51 @@ const WebsocketHandler = (function() {
         case "idle":
           game.setState("idle");
           break;
-        case "passcards":
-          // args = 3 cards being passed to player, then all the player indices for animation
+        case "pass-cards":
+          // args = 3 cards being passed to player, then all the player card indices for animation
           const cardTypes = args.slice(0, 3);
           const cardIndices = args.slice(3).map(num => parseInt(num));
           game.passCardSelection(cardTypes, cardIndices);
           break;
-        case "playerbefore":
-          game.addPlayer("front", false);
+        case "player-before":
+          otherPlayerUUID = args[0];
+          otherPlayerName = args[1];
+          game.addPlayer("front", false, otherPlayerUUID, otherPlayerName);
           break;
-        case "playerafter":
-          game.addPlayer("back", false);
+        case "player-after":
+          otherPlayerUUID = args[0];
+          otherPlayerName = args[1];
+          game.addPlayer("back", false, otherPlayerUUID, otherPlayerName);
           break;
+        case "card-animation":
+          animationJSON = args[0];
+          otherPlayerUUID = args[1];
+          cardInx = args[2];
+
+          game.setCardAnimation(JSON.parse(animationJSON), otherPlayerUUID, cardInx);
+          break;
+        case "card-animation-reverse":
+          animationID = parseInt(args[0]);
+
+          game.reverseCardAnimation(animationID);
       }
     });
   });
 
-  return {};
+  function sendCardAnimation(animation, card, reverse=false) {
+    if (["up", "upstick"].includes(animation.type) && card.player) {
+      if (reverse) {
+        websocket.send(`card-animation-reverse ${animation.id}`);
+      } else {
+        const animationJSON = JSON.stringify(animation);
+        websocket.send(`card-animation ${animationJSON} ${card.player.uuid} ${card.player.cards.indexOf(card)}`);
+      }
+    }
+  }
+
+  return {
+    sendCardAnimation,
+  };
 })();
+
+export { WebsocketHandler };

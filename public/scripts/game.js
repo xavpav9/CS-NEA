@@ -1,6 +1,6 @@
 import Scene from "./ui.js";
 import {rp} from "./ui.js";
-import {Model, Card, Player, Pickup, Trick} from "./objects.js";
+import {Model, Card, Player, Pickup, Trick, Animation} from "./objects.js";
 
 class Deck {
   constructor(scene) {
@@ -51,9 +51,9 @@ class Game {
     this.scene.render();
   }
 
-  addPlayer(side, mainPlayer) {
-    if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer));
-    else if (side === "back") this.players.push(new Player(this.scene, mainPlayer));
+  addPlayer(side, mainPlayer, uuid, name) {
+    if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer, uuid, name));
+    else if (side === "back") this.players.push(new Player(this.scene, mainPlayer, uuid, name));
   }
 
   sortMainPlayerCards() {
@@ -61,9 +61,28 @@ class Game {
     if (mainPlayer) mainPlayer.sortCards();
   }
 
+  setMainPlayerUUID(uuid) {
+    const mainPlayer = this.players.find(player => player.mainPlayer);
+    if (mainPlayer) mainPlayer.uuid = uuid;
+  }
+
   setMainPlayerCards(cards) {
     const mainPlayerIndex = this.players.indexOf(this.players.find(player => player.mainPlayer));
     this.deck.setPlayerCards(mainPlayerIndex, this.players.length, cards);
+  }
+
+  setCardAnimation(animationObj, playerUUID, cardInx) {
+    const player = this.players.find(player => player.uuid === playerUUID);
+    const animation = Animation.createAnimation(animationObj);
+    if (player && player.cards[cardInx]) player.cards[cardInx].setAnimation(animation, false, false);
+  }
+
+  reverseCardAnimation(animationID) {
+    for (const player of this.players) {
+      for (const card of player.cards) {
+        if (card.getAnimationID() === animationID) card.reverseAnimation("up", "upstick");
+      }
+    }
   }
 
   deal() {
@@ -98,7 +117,7 @@ class Game {
     // Collect destination data
     this.players.forEach((player, inx) => {
       const nextPlayer = this.players[(inx + 1) % this.players.length];
-      const playerCardIndices = cardIndices.slice(inx*3, (inx+1)*3)
+      const playerCardIndices = cardIndices.slice(inx*3, (inx+1)*3);
       const cards = player.cards.filter((card, cardInx) => playerCardIndices.includes(cardInx));
 
 
