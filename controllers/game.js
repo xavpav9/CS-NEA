@@ -6,6 +6,7 @@ class Player {
     this.index = null; // Index in game order
     this.selectionCards = [];
     this.selectionIndices = []; // For animations
+    this.cards = []; // The card types
   }
 }
 
@@ -45,6 +46,11 @@ class GameLogic {
     this.state = "idle";
     this.deck = new Deck();
     this.deck.shuffle();
+    this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
+
+    const values = [];
+    for (let i=0; i<52; ++i) values.push(i);
+    for (let i=0; i<52; ++i) this.indexMapper[i] = values.splice(Math.floor(Math.random() * values.length), 1)[0];
 
     GameLogic.games[id] = this;
   }

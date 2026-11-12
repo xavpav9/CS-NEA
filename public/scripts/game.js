@@ -61,6 +61,10 @@ class Game {
     if (mainPlayer) mainPlayer.sortCards();
   }
 
+  getMainPlayer() {
+    return this.players.find(player => player.mainPlayer);
+  }
+
   setMainPlayerUUID(uuid) {
     const mainPlayer = this.players.find(player => player.mainPlayer);
     if (mainPlayer) mainPlayer.uuid = uuid;
@@ -74,7 +78,7 @@ class Game {
   setCardAnimation(animationObj, playerUUID, cardInx) {
     const player = this.players.find(player => player.uuid === playerUUID);
     const animation = Animation.createAnimation(animationObj);
-    if (player && player.cards[cardInx]) player.cards[cardInx].setAnimation(animation, false, false);
+    if (player && player.cards[cardInx]) player.cards[cardInx].setAnimation(animation, true, false);
   }
 
   reverseCardAnimation(animationID) {
@@ -139,8 +143,9 @@ class Game {
       nextPlayerArr.push(nextPlayer);
       newCardInxsArr.push(cardIndices.slice(
         ((inx + 1) * 3) % cardIndices.length,
-        ((inx + 2) * 3 === cardIndices.length) ? cardIndices.length : ((inx + 2) * 3) % cardIndices.length,
+        (((inx + 2) * 3) % cardIndices.length === 0) ? cardIndices.length : ((inx + 2) * 3) % cardIndices.length,
       ));
+      // cardIndices.slice will always take values 0->2, 3->5, 6->8 etc. However, if the second value is 0, then I instead want up to the end of the array.
 
       numOfCardsArr.push(nextPlayer.cards.length);
     });

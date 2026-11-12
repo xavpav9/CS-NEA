@@ -1,9 +1,9 @@
 import Game from "./game.js";
+import {rp} from "./ui.js";
 
 // TODO:
 //  - Fix animation issues. These include:
-//    > Sorting cards after selection removes upstick animation.
-//    > Cards can still have upstick after they have been sent to next player.
+//    > If player selects cards before another player has loaded, the other player does not see the animations.
 //    > When hovering at bottom of card, it jitters.
 //  - Fix any issues with reloading the page whilst still in a game.
 
@@ -40,12 +40,14 @@ const WebsocketHandler = (function() {
 
   sendCardsBtn.addEventListener("click", evt => {
     const selection = game.getCardSelection();
-    if (selection.length === 3 && game.state === "start") {
+    const mainPlayer = game.getMainPlayer();
+    if (selection.length === 3 && game.state === "start" && !mainPlayer.sorting && !mainPlayer.passingSelection) {
       game.setState("idle");
 
       const cardTypes = selection.map(card => card.type).join(" ");
-      let cardIndices = game.players.find(player => player.mainPlayer).cards.map((card, inx) => (cardTypes.includes(card.type)) ? inx : -1).filter(val => val !== -1).join(" ");
+      let cardIndices = mainPlayer.cards.map((card, inx) => (cardTypes.includes(card.type)) ? inx : -1).filter(val => val !== -1).join(" ");
       websocket.send(`selection ${cardTypes} ${cardIndices}`);
+      mainPlayer.passingSelection = true;
     }
   });
 
@@ -64,7 +66,7 @@ const WebsocketHandler = (function() {
       let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID;
       const [command, ...args] = evt.data.split(" ");
 
-      // console.log(command, args);
+      console.log(command, args);
       switch (command) {
         case "connected":
           break;
@@ -96,6 +98,7 @@ const WebsocketHandler = (function() {
           const cardTypes = args.slice(0, 3);
           const cardIndices = args.slice(3).map(num => parseInt(num));
           game.passCardSelection(cardTypes, cardIndices);
+          setTimeout(() => game.getMainPlayer().passingSelection = false, rp.PASSCARD_ANIMATION_TIME);
           break;
         case "player-before":
           otherPlayerUUID = args[0];

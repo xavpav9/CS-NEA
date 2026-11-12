@@ -1,8 +1,6 @@
 import {m3, m4, v3} from "./linear-algebra.js";
 import {Node, Animation} from "./objects.js";
 
-const UP_ANIMATION_TIME = 150;
-
 const rp = { // Rendering Parameters
   ANGLE_SEPARATION: Math.PI/32, // Separation of cards on circle around player.
   CARD_DIST: 16, // Radius of circle which cards lie on from the player.
@@ -11,6 +9,12 @@ const rp = { // Rendering Parameters
   TRICK_COLUMN_SEPARATION: 0.35,
   TRICK_ROW_SEPARATION: 0.4,
   TRICKS_PER_ROW: 4,
+
+  UP_ANIMATION_TIME: 150,
+  PLAY_ANIMATION_TIME: 1000,
+  PICKUP_ANIMATION_TIME: 2000,
+  PASSCARD_ANIMATION_TIME: 2000,
+  MOVECARD_ANIMATION_TIME: 1500,
 }
 
 class Scene {
@@ -105,13 +109,13 @@ class Scene {
         const upCards = this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
         upCards.sort((a, b) => b.getAnimationStart() - a.getAnimationStart()); // cards go from newest to oldest
         upCards.slice(2).forEach(card => {
-          card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+          card.setAnimation(new Animation("up", rp.UP_ANIMATION_TIME, rp.UP_ANIMATION_TIME), true);
           card.reverseAnimation("up");
         });
 
         card.setAnimation(new Animation("upstick", 0));
       } else {
-        card.setAnimation(new Animation("up", UP_ANIMATION_TIME, UP_ANIMATION_TIME), true);
+        card.setAnimation(new Animation("up", rp.UP_ANIMATION_TIME, rp.UP_ANIMATION_TIME), true);
       }
     }
 
@@ -127,7 +131,7 @@ class Scene {
 
     this.playerCards.splice(this.playerCards.indexOf(card), 1);
 
-    card.setAnimation(new Animation("play", 1000, 1000, position));
+    card.setAnimation(new Animation("play", rp.PLAY_ANIMATION_TIME, rp.PLAY_ANIMATION_TIME, position));
     card.reverseAnimation("play");
   }
 
@@ -342,7 +346,7 @@ class Scene {
     // Render position from perspective of pickup pile
     card.model.setParent(card.doc.model);
 
-    card.setAnimation(new Animation("pickup", 2000, 0, position, animation => animationCallback(animation)));
+    card.setAnimation(new Animation("pickup", rp.PICKUP_ANIMATION_TIME, 0, position, animation => animationCallback(animation)));
   }
 
 
@@ -366,7 +370,7 @@ class Scene {
     card.model.setParent(this.origin);
     card.animationPosition = startPosition;
 
-    card.setAnimation(new Animation("passCard", 2000, 0, translation, animation => animationCallback(animation)));
+    card.setAnimation(new Animation("passCard", rp.PASSCARD_ANIMATION_TIME, 0, translation, animation => animationCallback(animation)));
   }
 
 
@@ -384,7 +388,7 @@ class Scene {
     const translation = endPosition.map((val, inx) => val - startPosition[inx]);
 
     // translation goes from new to old, so reverseAnimation makes it go from old to new.
-    card.setAnimation(new Animation("moveCard", 1500, 1500, translation, animation => animationCallback(animation)));
+    card.setAnimation(new Animation("moveCard", rp.MOVECARD_ANIMATION_TIME, rp.MOVECARD_ANIMATION_TIME, translation, animation => animationCallback(animation)));
     card.reverseAnimation("moveCard");
   }
 
@@ -704,7 +708,7 @@ class Scene {
         const card = allCards.find(val => val.id === this.currentId);
 
         if (card.player && card.player.mainPlayer && !card.doc) {
-          card.setAnimation(new Animation("up", UP_ANIMATION_TIME));
+          card.setAnimation(new Animation("up", rp.UP_ANIMATION_TIME));
 
           this.canvas.style.cursor = "pointer";
         }

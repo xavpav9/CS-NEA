@@ -1,5 +1,6 @@
-import {m4} from "./linear-algebra.js";
+import { m4 } from "./linear-algebra.js";
 import { WebsocketHandler } from "./play.js";
+import { rp } from "./ui.js";
 
 let id = 1; // id=0 is when nothing is selected
 
@@ -258,6 +259,10 @@ class Card {
     return (this.animation) ? this.animation.start : null;
   }
 
+  getAnimation() {
+    return this.animation;
+  }
+
   getTexcoords(type) {
     // 1989x895, 11px gap between images (and at top and bottom)
     const pixelX = 1/1989;
@@ -380,6 +385,7 @@ class Player {
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
     this.turn = false; // Whether it is this players current turn
     this.sorting = false; // Whether players cards are currently being sorted or not.
+    this.passingSelection = false; // Whether the player is awaiting a pass-cards from server or not.
 
     // Rendering attributes
     this.model = new Model("player", "card.obj", "card-atlas.png", null, false); // TODO: Replace placeholder arguments.
@@ -444,23 +450,21 @@ class Player {
 
   moveCards(cards, cardTypes) { // Cards stay with current player
     const newCardInxs = this.cards.map(card => cardTypes.indexOf(card.type));
-    const animationsFinished = [];
 
     cards.forEach((card, inx) => {
-      animationsFinished.push(false);
+      const oldAnimation = card.getAnimation();
       this.scene.moveCard(card, newCardInxs[inx], animation => {
-        card.setAnimation(null);
-
-        animationsFinished[inx] = true;
-        if (animationsFinished.every(bool => bool)) this.sorting = false;
+        card.setAnimation(oldAnimation, true); // e.g. if the card was selected, it will keep upstick
       });
     });
+
+    setTimeout(() => this.sorting = false, rp.MOVECARD_ANIMATION_TIME); // Just in case lag prevents sorting from becoming false
 
     this.cards.sort((a, b) => cardTypes.indexOf(a.type) - cardTypes.indexOf(b.type));
   }
 
   sortCards() {
-    if (!this.sorting) {
+    if (!this.sorting && !this.passingSelection) {
       this.sorting = true;
 
       const cardTypes = this.cards.map(card => card.type);

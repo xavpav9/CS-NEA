@@ -1,6 +1,9 @@
 import GameLogic from "./game.js";
 import Game from "./../models/game.js";
 
+//TODO:
+//  - Use player.cards to keep track of who has what cards, instead of relying on the client.
+
 
 function get(req, res) {
   const gameID = req.params.gameID;
@@ -53,7 +56,8 @@ function handleGame(ws) {
               for (const player of game.players) {
                 player.index = playerIndex;
                 setTimeout(() => {
-                  player.ws.send(`deal ${cards.filter((card, inx) => inx % maxPlayerCount === player.index).join(" ")}`);
+                  player.cards = cards.filter((card, inx) => inx % maxPlayerCount === player.index);;
+                  player.ws.send(`deal ${player.cards.join(" ")}`);
                   player.ws.send("start");
                   game.state = "start";
                 }, 500);
@@ -77,12 +81,23 @@ function handleGame(ws) {
               allSelectionIndices.push(...player.selectionIndices);
             }
 
+            let i = 0;
             for (const player of game.players) {
               let previousPlayerIndex = player.index - 1;
               if (previousPlayerIndex < 0) previousPlayerIndex += game.players.length;
 
-              player.ws.send(`pass-cards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${allSelectionIndices.join(' ')}`);
+              const currentAllSelectionIndices = allSelectionIndices.map((num, inx) => {
+                if (inx < i * 3 || inx >= (i + 1) * 3) {
+                  return game.indexMapper[num] % game.getPlayer(ws).cards.length; // Not current player indices, so send the mapped ones.
+                } else {
+                  return num; // Indices for current player, so send the actual indices.
+                }
+              });
+
+              player.ws.send(`pass-cards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
               player.ws.send("main");
+
+              ++i;
             }
 
             game.state = "main";
@@ -94,7 +109,8 @@ function handleGame(ws) {
         if (game) {
           const animationJSON = args[0];
           const playerUUID = args[1];
-          const cardInx = args[2];
+          const cardInx = game.indexMapper[args[2]] % game.getPlayer(ws).cards.length;
+
           for (const otherPlayer of game.players) {
             if (otherPlayer.ws !== ws) {
               otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${cardInx}`);
