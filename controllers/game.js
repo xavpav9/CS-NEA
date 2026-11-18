@@ -1,5 +1,5 @@
 class Player {
-  constructor(ws, uuid, name) {
+  constructor(uuid, ws, name) {
     this.ws = ws;
     this.uuid = uuid;
     this.name = name;
@@ -7,6 +7,7 @@ class Player {
     this.selectionCards = [];
     this.selectionIndices = []; // For animations
     this.cards = []; // The card types
+    this.online = true; // If the player disconnects
   }
 }
 
@@ -46,8 +47,10 @@ class GameLogic {
     this.state = "idle";
     this.deck = new Deck();
     this.deck.shuffle();
+    this.dealt = false;
     this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
-    this.pastAnimations = []; // (playercard) Animations that have already happened
+    this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog)
+    this.currentPlayerIndex = 0; // Index of player being added next
 
     const values = [];
     for (let i=0; i<52; ++i) values.push(i);
@@ -58,10 +61,10 @@ class GameLogic {
 
   static games = {};
 
-  addPlayer(ws, name) {
-    if (this.players.map(player => player.ws).includes(ws)) return false;
+  addPlayer(uuid, name, ws=null) {
+    if (this.players.map(player => player.uuid).includes(uuid)) return false;
     else {
-      const player = new Player(ws, crypto.randomUUID(), name);
+      const player = new Player(uuid, ws, name);
       this.players.push(player);
       return player;
     }
@@ -74,17 +77,41 @@ class GameLogic {
     } else return false;
   }
 
-  getPlayer(ws) {
-    const player = this.players.find(player => player.ws === ws);
+  getPlayer(identification) {
+    const player = this.players.find(player => player.ws === identification || player.uuid === identification);
     return (player) ? player : false;
   }
 
-  static getGameFromPlayer(ws) {
+  clearPlayerPastAnimations(player) {
+    const animationIDs = [];
+    for (let i=0; i<this.pastAnimations.length;) {
+      const animation = this.pastAnimations[i];
+      if (animation[0] === "normal") {
+        if (animation[2] === player.uuid) {
+          const animationObj = JSON.parse(animation[1]);
+          if (animationObj !== null) animationIDs.push(parseInt(animationObj.id));
+          this.pastAnimations.splice(i, 1);
+        } else i++;
+      } else {
+        if (animationIDs.includes(parseInt(animation[1]))) {
+          this.pastAnimations.splice(i, 1);
+        } else i++;
+      }
+    }
+
+  }
+
+  static getGameFromPlayer(identification) {
     for (const gameID in GameLogic.games) {
       let game = GameLogic.games[gameID];
-      if (game.getPlayer(ws)) return game;
+      if (game.getPlayer(identification)) return game;
     }
     return false;
+  }
+
+  setState(state) {
+    this.pastAnimations = [];
+    this.state = state;
   }
 
   delete() {

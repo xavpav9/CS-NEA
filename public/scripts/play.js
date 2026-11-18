@@ -1,9 +1,9 @@
 import Game from "./game.js";
 import {rp} from "./ui.js";
+import {Card} from "./objects.js";
 
 // TODO:
 //  - Fix animation issue - When hovering at bottom of card, it jitters.
-//  - Fix any issues with reloading the page whilst still in a game.
 //  - If there is a render issue, allow the user to reset the canvas.
 
 const canvas = document.querySelector("#c");
@@ -34,7 +34,7 @@ const WebsocketHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
   const sortCardsBtn = document.querySelector("#sort-cards");
   let name = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "user")[1];
-  let uuid = null;
+  let uuid = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "uuid")[1];
   let connected = false;
 
   sendCardsBtn.addEventListener("click", evt => {
@@ -58,20 +58,17 @@ const WebsocketHandler = (function() {
     connected = true;
     websocket.send("play");
     console.log("Connected to server.");
-    websocket.send(`game ${canvas.dataset.gameid} ${name}`);
-    game.addPlayer("back", true, null, name);
+    websocket.send(`game ${canvas.dataset.gameid} ${name} ${uuid}`);
+    game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationObj, cardInx, animationID;
+      let otherPlayerUUID, otherPlayerName, animationObj, cardInx, animationID, cardTypes;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
       switch (command) {
         case "connected":
           break;
-        case "player-uuid":
-          uuid = args[0];
-          game.setMainPlayerUUID(uuid);
         case "deal":
           // args = cards dealt to player
           game.setMainPlayerCards(args);
@@ -94,7 +91,7 @@ const WebsocketHandler = (function() {
           break;
         case "pass-cards":
           // args = 3 cards being passed to player, then all the player card indices for animation
-          const cardTypes = args.slice(0, 3);
+          cardTypes = args.slice(0, 3);
           const cardIndices = args.slice(3).map(num => parseInt(num));
           game.passCardSelection(cardTypes, cardIndices);
           setTimeout(() => game.getMainPlayer().passingSelection = false, rp.PASSCARD_ANIMATION_TIME);
@@ -131,6 +128,50 @@ const WebsocketHandler = (function() {
           break;
         case "animation-backlog":
           game.animationBacklog = JSON.parse(args.slice().join(" "));
+          break;
+        case "player-leave":
+          otherPlayerUUID = args[0];
+          const otherPlayer = game.players.find(player => player.uuid === otherPlayerUUID);
+          if (otherPlayer) {
+            for (const card of otherPlayer.cards) {
+              card.setAnimation(null, true, false);
+            }
+          }
+          break;
+        case "cards":
+          const numOfPlayers = parseInt(args[0]);
+          const playerCardCounts = args.slice(1, numOfPlayers+1);
+          cardTypes = args.slice(numOfPlayers+1);
+
+          game.deck.empty();
+          game.dealt = true;
+
+          // Set main player cards
+          const mainPlayer = game.getMainPlayer();
+          if (mainPlayer) {
+            for (const cardType of cardTypes) {
+              game.addPlayerCard(mainPlayer, cardType);
+            }
+          }
+
+          // Fill other player cards with blanks
+          for (let i=0; i<numOfPlayers; ++i) {
+            const player = game.players[i];
+            if (player && !player.mainPlayer) {
+              for (let j=0; j<playerCardCounts[i]; ++j) game.addPlayerCard(player, "blank");
+            }
+          }
+
+          // TODO: Fix code below to sort out animation backlog.
+          const clearAnimationBacklogAfterReload = () => {
+            if (mainPlayer.cards.every(card => card.model.ready)) {
+              game.clearAnimationBacklog();
+            } else {
+              setTimeout(() => clearAnimationBacklogAfterReload(), 50);
+            }
+          };
+          setTimeout(() => clearAnimationBacklogAfterReload(), 500);
+
           break;
       }
     });

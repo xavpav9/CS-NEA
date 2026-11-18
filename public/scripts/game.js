@@ -33,6 +33,14 @@ class Deck {
       }
     }
   }
+
+  empty() {
+    let card = this.cards.pop();
+    while (card) {
+      card.doc.removeCard(card, false);
+      card = this.cards.pop();
+    }
+  }
 }
 
 class Game {
@@ -58,6 +66,11 @@ class Game {
     else if (side === "back") this.players.push(new Player(this.scene, mainPlayer, uuid, name));
   }
 
+  addPlayerCard(player, cardType) {
+    const card = new Card(this.scene, cardType);
+    player.addCard(card);
+  }
+
   sortMainPlayerCards() {
     const mainPlayer = this.players.find(player => player.mainPlayer);
     if (mainPlayer) mainPlayer.sortCards();
@@ -65,11 +78,6 @@ class Game {
 
   getMainPlayer() {
     return this.players.find(player => player.mainPlayer);
-  }
-
-  setMainPlayerUUID(uuid) {
-    const mainPlayer = this.players.find(player => player.mainPlayer);
-    if (mainPlayer) mainPlayer.uuid = uuid;
   }
 
   setMainPlayerCards(cards) {
@@ -88,6 +96,23 @@ class Game {
       for (const card of player.cards) {
         if (card.getAnimationID() === animationID) card.reverseAnimation("up", "upstick");
       }
+    }
+  }
+
+  clearAnimationBacklog() {
+    // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
+    let animation = this.animationBacklog.shift();
+    while (animation) {
+      if (animation[0] === "normal") {
+        const animationObj = animation[1];
+        const playerUUID = animation[2];
+        const cardInx = animation[3];
+        this.setCardAnimation(animationObj, playerUUID, cardInx);
+      } else {
+        const animationID = animation[1];
+        this.reverseCardAnimation(animationID);
+      }
+      animation = this.animationBacklog.shift();
     }
   }
 
@@ -117,34 +142,22 @@ class Game {
 
       this.justDealt = true;
 
-      const clearAnimationBacklog = () => {
+      const clearAnimationBacklogAfterDeal = () => {
         if (cardsDealt.at(-1)) { // When all cards have been dealt.
-          // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
-          let animation = this.animationBacklog.shift();
-          while (animation) {
-            if (animation[0] === "normal") {
-              const animationObj = animation[1];
-              const playerUUID = animation[2];
-              const cardInx = animation[3];
-              this.setCardAnimation(animationObj, playerUUID, cardInx);
-            } else {
-              const animationID = animation[1];
-              this.reverseCardAnimation(animationID);
-            }
-            animation = this.animationBacklog.shift();
-          }
+          this.clearAnimationBacklog();
           this.dealt = true;
         } else {
-          setTimeout(() => clearAnimationBacklog(), 50);
+          setTimeout(() => clearAnimationBacklogAfterDeal(), 50);
         }
       };
 
-      setTimeout(() => clearAnimationBacklog(), (deckLength-1)*50 + rp.PICKUP_ANIMATION_TIME);
+      setTimeout(() => clearAnimationBacklogAfterDeal(), (deckLength-1)*50 + rp.PICKUP_ANIMATION_TIME);
     }
   }
 
   setState(state) {
     this.state = state;
+    this.animationBacklog = [];
   }
 
   getCardSelection() {

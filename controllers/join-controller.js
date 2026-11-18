@@ -47,6 +47,7 @@ async function postRoot(req, res) {
     console.log(`User '${req.session.user}' (${(userID !== 1) ? "" : "not "}signed in) connected to gameID ${gameID}.`);
 
     req.session.gameID = gameID;
+    res.cookie("uuid", "");
     res.redirect(`/play/${gameID}`);
 
     if (existingGameUsers.length + 1 === TABLE_SIZE) table.delete(); // Table is full.

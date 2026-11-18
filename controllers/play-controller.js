@@ -5,15 +5,32 @@ import Game from "./../models/game.js";
 //  - Use player.cards to keep track of who has what cards, instead of relying on the client.
 
 
-function get(req, res) {
+async function get(req, res) {
   const gameID = req.params.gameID;
-  const username = req.session.user;
+  const name = req.session.user;
   const userID = req.session.userID;
+  let uuid = req.cookies.uuid;
 
   req.session.gameID = gameID;
 
+  // TODO: If game is full (check database), redirect player elsewhere.
 
 
+  if (uuid.length) {
+    GameLogic.games[gameID].getPlayer(uuid).online = true;
+  } else if (gameID && name) {
+    uuid = crypto.randomUUID();
+    res.cookie("uuid", uuid);
+
+    const game = GameLogic.games[gameID] || new GameLogic(gameID);
+    const gameInfo = await Game.getGameInfoByID(gameID);
+    const maxPlayerCount = gameInfo.max_player_count;
+
+    if (gameInfo && game.players.length < maxPlayerCount) {
+      const newPlayer = game.addPlayer(uuid, name, null);
+      // TODO: Add player to database.
+    }
+  }
 
   res.render("play", {
     gameID,
@@ -33,41 +50,56 @@ function handleGame(ws) {
       case "game":
         const gameID = parseInt(args[0]);
         const name = args[1];
+        const uuid = args[2];
 
-        if (gameID && name) {
-          game = GameLogic.games[gameID] || new GameLogic(gameID);
+        if (gameID && name && uuid) {
+          game = GameLogic.games[gameID];
           const gameInfo = await Game.getGameInfoByID(gameID);
-          const maxPlayerCount = gameInfo.max_player_count;
+          const newPlayer = game.getPlayer(uuid);
 
-          if (gameInfo && !game.getPlayer(ws) && game.players.length < maxPlayerCount) {
-            const newPlayer = game.addPlayer(ws, name);
+          if (newPlayer && gameInfo && game) {
+            const playerReload = Boolean(newPlayer.ws); // Whether the player has reloaded the page.
+            newPlayer.ws = ws;
+            
+            if (!playerReload) {
+              newPlayer.index = game.currentPlayerIndex;
+              game.currentPlayerIndex++;
+            }
 
-            ws.send(`player-uuid ${newPlayer.uuid}`);
-            for (const otherPlayer of game.players) {
-              if (otherPlayer !== newPlayer) {
-                ws.send(`player-before ${otherPlayer.uuid} ${otherPlayer.name}`);
-                otherPlayer.ws.send(`player-after ${newPlayer.uuid} ${newPlayer.name}`);
+            for (const otherPlayer of game.players.sort((a, b) => a.index - b.index)) {
+              if (otherPlayer.ws && otherPlayer !== newPlayer) {
+                // Send newPlayer.ws player order information
+                if (otherPlayer.index < newPlayer.index) ws.send(`player-before ${otherPlayer.uuid} ${otherPlayer.name}`);
+                else ws.send(`player-after ${otherPlayer.uuid} ${otherPlayer.name}`);
+
+                // If newPlayer is new (not a reload) send otherPlayer.ws player order information
+                if (!playerReload) otherPlayer.ws.send(`player-after ${newPlayer.uuid} ${newPlayer.name}`);
               }
             }
 
-            ws.send(`animation-backlog ${JSON.stringify(game.pastAnimations)}`);
-
-            if (maxPlayerCount === game.players.length) {
-              let playerIndex = 0;
+            const maxPlayerCount = gameInfo.max_player_count;
+            if (!game.dealt && maxPlayerCount === game.players.filter(player => player.ws).length) {
               const cards = game.deck.cards.slice();
               for (const player of game.players) {
-                player.index = playerIndex;
                 setTimeout(() => {
                   player.cards = cards.filter((card, inx) => inx % maxPlayerCount === player.index);;
                   player.ws.send(`deal ${player.cards.join(" ")}`);
                   player.ws.send("start");
-                  game.state = "start";
+                  game.setState("start");
                 }, 500);
-                playerIndex++;
               }
 
               game.deck.empty();
+              game.dealt = true;
+            } else if (["start", "main"].includes(game.state)) {
+              // TODO: Player already in running game, so send them the correct details to get back into the game.
+              const numsOfCards = game.players.map(player => player.cards.length);
+
+              ws.send(game.state);
+              ws.send(`cards ${game.players.length} ${numsOfCards.join(" ")} ${newPlayer.cards.join(" ")}`);
             }
+
+            ws.send(`animation-backlog ${JSON.stringify(game.pastAnimations)}`);
           }
         }
         break;
@@ -102,7 +134,7 @@ function handleGame(ws) {
               ++i;
             }
 
-            game.state = "main";
+            game.setState("main");
           }
         }
         break;
@@ -140,7 +172,21 @@ function handleGame(ws) {
   });
 
   ws.on("close", () => {
-    // Handle close properly
+    const game = GameLogic.getGameFromPlayer(ws);
+    if (game) {
+      const player = game.getPlayer(ws);
+
+      player.selectionCards = [];
+      player.selectionIndices = [];
+      game.clearPlayerPastAnimations(player);
+
+      for (const otherPlayer of game.players) {
+        if (otherPlayer.ws !== ws) {
+          otherPlayer.ws.send(`player-leave ${player.uuid}`);
+        }
+      }
+    }
+
   });
 
 }
