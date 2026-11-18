@@ -41,7 +41,9 @@ class Game {
     this.state = "idle";
     this.deck = new Deck(this.scene);
     this.dealt = false;
+    this.justDealt = false;
     this.selection = [];
+    this.animationBacklog = [];
 
     this.pickupPile = new Pickup(this.scene, this.deck.cards);
 
@@ -90,18 +92,55 @@ class Game {
   }
 
   deal() {
-    if (!this.dealt) {
+    if (!(this.justDealt || this.dealt)) {
       const deckLength = this.pickupPile.cards.length;
+      const cardsDealt = []; // Booleans to say if a card has been dealt yet.
+
+      const dealCard = (player, currentCard, inx) => {
+        setTimeout(() => {
+          if (inx === 0 || cardsDealt[inx-1]) {
+            this.pickupPile.dealCard(player, currentCard);
+            cardsDealt[inx] = true;
+          } else {
+            setTimeout(() => dealCard(player, currentCard, inx), 50);
+          }
+        });
+      }
 
       for (let i=0; i<deckLength; ++i) {
+        cardsDealt.push(false);
         const player = this.players[i % (this.players.length)];
         const currentCard = Math.floor(i / this.players.length);
 
-        setTimeout(() => this.pickupPile.dealCard(player, currentCard), i*50);;
+        setTimeout(() => dealCard(player, currentCard, i), i*50);;
       }
-    }
 
-    this.dealt = true;
+      this.justDealt = true;
+
+      const clearAnimationBacklog = () => {
+        if (cardsDealt.at(-1)) { // When all cards have been dealt.
+          // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
+          let animation = this.animationBacklog.shift();
+          while (animation) {
+            if (animation[0] === "normal") {
+              const animationObj = animation[1];
+              const playerUUID = animation[2];
+              const cardInx = animation[3];
+              this.setCardAnimation(animationObj, playerUUID, cardInx);
+            } else {
+              const animationID = animation[1];
+              this.reverseCardAnimation(animationID);
+            }
+            animation = this.animationBacklog.shift();
+          }
+          this.dealt = true;
+        } else {
+          setTimeout(() => clearAnimationBacklog(), 50);
+        }
+      };
+
+      setTimeout(() => clearAnimationBacklog(), (deckLength-1)*50 + rp.PICKUP_ANIMATION_TIME);
+    }
   }
 
   setState(state) {
@@ -132,6 +171,7 @@ class Game {
 
           // Create new card, and set model matrix for animation
           const newCard = new Card(this.scene, cardTypes[cardInx]);
+          newCard.model.reset = false;
           player.addCard(newCard, playerCardIndices[cardInx]);
           this.scene.setPlayerCardModel(newCard, player.cards.length, playerCardIndices[cardInx]);
 

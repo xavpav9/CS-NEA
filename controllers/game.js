@@ -47,6 +47,7 @@ class GameLogic {
     this.deck = new Deck();
     this.deck.shuffle();
     this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
+    this.pastAnimations = []; // (playercard) Animations that have already happened
 
     const values = [];
     for (let i=0; i<52; ++i) values.push(i);

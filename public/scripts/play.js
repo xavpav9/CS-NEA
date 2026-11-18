@@ -2,10 +2,9 @@ import Game from "./game.js";
 import {rp} from "./ui.js";
 
 // TODO:
-//  - Fix animation issues. These include:
-//    > If player selects cards before another player has loaded, the other player does not see the animations.
-//    > When hovering at bottom of card, it jitters.
+//  - Fix animation issue - When hovering at bottom of card, it jitters.
 //  - Fix any issues with reloading the page whilst still in a game.
+//  - If there is a render issue, allow the user to reset the canvas.
 
 const canvas = document.querySelector("#c");
 const game = new Game(canvas, 4);
@@ -63,7 +62,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, null, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID;
+      let otherPlayerUUID, otherPlayerName, animationObj, cardInx, animationID;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -111,22 +110,36 @@ const WebsocketHandler = (function() {
           game.addPlayer("back", false, otherPlayerUUID, otherPlayerName);
           break;
         case "card-animation":
-          animationJSON = args[0];
+          animationObj = JSON.parse(args.slice(0, -2).join(" "));
           otherPlayerUUID = args[1];
-          cardInx = args[2];
+          cardInx = parseInt(args[2]);
 
-          game.setCardAnimation(JSON.parse(animationJSON), otherPlayerUUID, cardInx);
+          if (game.dealt) {
+            game.setCardAnimation(animationObj, otherPlayerUUID, cardInx);
+          } else {
+            game.animationBacklog.push(["normal", animationObj, otherPlayerUUID, cardInx]);
+          }
           break;
         case "card-animation-reverse":
           animationID = parseInt(args[0]);
 
-          game.reverseCardAnimation(animationID);
+          if (game.dealt) {
+            game.reverseCardAnimation(animationID);
+          } else {
+            game.animationBacklog.push(["reverse", animationID]);
+          }
+          break;
+        case "animation-backlog":
+          game.animationBacklog = JSON.parse(args.slice().join(" "));
+          break;
       }
     });
   });
 
   function sendCardAnimation(animation, card, reverse=false) {
-    if (["up", "upstick"].includes(animation.type) && card.player) {
+    if (animation === null) {
+        websocket.send(`card-animation ${JSON.stringify(null)} ${card.player.uuid} ${card.player.cards.indexOf(card)}`);
+    } else if (["up", "upstick"].includes(animation.type) && card.player) {
       if (reverse) {
         websocket.send(`card-animation-reverse ${animation.id}`);
       } else {

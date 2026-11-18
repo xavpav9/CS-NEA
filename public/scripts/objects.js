@@ -88,6 +88,7 @@ class Model extends Node { // 3D Model
     this.startRendering = false; // Should this model be rendered starting from the next frame
     this.rendering = false; // Should this model be rendered
     this.toBeRemoved = false; // Remove model on next frame
+    this.reset = true; // Whether the model worldMatrix should reset on each frame or not
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -224,6 +225,7 @@ class Card {
     this.animationFromClient = animationFromClient;
     if (animation === null) {
       this.animation = null;
+      if (this.animationFromClient && this.player) WebsocketHandler.sendCardAnimation(null, this);
     } else if (force || this.animation === null || animation.priority > this.animation.priority) {
       this.animation = animation;
       if (this.animationFromClient) WebsocketHandler.sendCardAnimation(animation, this);
@@ -445,6 +447,7 @@ class Player {
         this.removeCard(card);
         otherPlayer.addCard(card, newCardInxs[inx]);
       });
+      card.model.reset = true;
     });
   }
 
@@ -453,6 +456,7 @@ class Player {
 
     cards.forEach((card, inx) => {
       const oldAnimation = card.getAnimation();
+      card.setAnimation(null);
       this.scene.moveCard(card, newCardInxs[inx], animation => {
         card.setAnimation(oldAnimation, true); // e.g. if the card was selected, it will keep upstick
       });
@@ -510,7 +514,7 @@ class Animation { // Information about an animation currently taking place.
   }
 
   static createAnimation(ao) { // ao (animationObj) is what the websocket sends for an animation
-    return new Animation(ao.type, ao.maxTime, ao.currentTime, ao.customTranslation, null, ao.id);
+    return (ao) ? new Animation(ao.type, ao.maxTime, ao.currentTime, ao.customTranslation, null, ao.id) : null;
   }
 
   static priorityScale = {

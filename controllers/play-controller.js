@@ -50,6 +50,8 @@ function handleGame(ws) {
               }
             }
 
+            ws.send(`animation-backlog ${JSON.stringify(game.pastAnimations)}`);
+
             if (maxPlayerCount === game.players.length) {
               let playerIndex = 0;
               const cards = game.deck.cards.slice();
@@ -114,6 +116,7 @@ function handleGame(ws) {
           for (const otherPlayer of game.players) {
             if (otherPlayer.ws !== ws) {
               otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${cardInx}`);
+              game.pastAnimations.push(["normal", animationJSON, playerUUID, cardInx]);
             }
           }
         }
@@ -125,6 +128,7 @@ function handleGame(ws) {
           for (const otherPlayer of game.players) {
             if (otherPlayer.ws !== ws) {
               otherPlayer.ws.send(`card-animation-reverse ${animationID}`);
+              game.pastAnimations.push(["reverse", animationID]);
             }
           }
         }
