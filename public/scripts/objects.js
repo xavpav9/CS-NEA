@@ -224,8 +224,8 @@ class Card {
   setAnimation(animation, force=false, animationFromClient=true) {
     this.animationFromClient = animationFromClient;
     if (animation === null) {
+      if (this.animationFromClient && this.player) WebsocketHandler.sendCardAnimation(this.animation, this, false, true);
       this.animation = null;
-      if (this.animationFromClient && this.player) WebsocketHandler.sendCardAnimation(null, this);
     } else if (force || this.animation === null || animation.priority > this.animation.priority) {
       this.animation = animation;
       if (this.animationFromClient) WebsocketHandler.sendCardAnimation(animation, this);
@@ -436,6 +436,7 @@ class Player {
     this.discard.addCard(card);
 
     this.scene.playCard(card);
+    card.model.reset = true;
   }
 
   passCards(cards, otherPlayer, newCardInxs, numOfCards) { // Cards go to another player

@@ -51,6 +51,7 @@ class Game {
     this.dealt = false;
     this.justDealt = false;
     this.selection = [];
+    this.selectedCard = null;
     this.animationBacklog = [];
 
     this.pickupPile = new Pickup(this.scene, this.deck.cards);
@@ -69,6 +70,14 @@ class Game {
   addPlayerCard(player, cardType) {
     const card = new Card(this.scene, cardType);
     player.addCard(card);
+  }
+
+  replacePlayerCard(player, cardType, cardInx) {
+    const card = new Card(this.scene, cardType);
+    const oldCard = player.cards[cardInx];
+
+    player.removeCard(oldCard, false);
+    player.addCard(card, cardInx);
   }
 
   sortMainPlayerCards() {
@@ -99,19 +108,31 @@ class Game {
     }
   }
 
+  removeCardAnimation(animationID) {
+    for (const player of this.players) {
+      for (const card of player.cards) {
+        if (card.getAnimationID() === animationID) card.setAnimation(null, true, false);
+      }
+    }
+  }
+
   clearAnimationBacklog() {
     // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
     let animationInfo = this.animationBacklog.shift();
     console.log(this.players);
     while (animationInfo) {
-      if (animationInfo[0] === "normal") {
+      const type = animationInfo[0];
+      if (type === "normal") {
         const animationJSON = animationInfo[1];
         const playerUUID = animationInfo[2];
         const cardInx = animationInfo[3];
         this.setCardAnimation(JSON.parse(animationJSON), playerUUID, cardInx);
-      } else {
+      } else if (type === "reverse") {
         const animationID = animationInfo[1];
         this.reverseCardAnimation(animationID);
+      } else if (type === "remove") {
+        const animationID = animationInfo[1];
+        this.removeCardAnimation(animationID);
       }
       animationInfo = this.animationBacklog.shift();
     }
@@ -167,6 +188,10 @@ class Game {
     return this.selection;
   }
 
+  getSelectedCard() {
+    return this.selectedCard;
+  }
+
   passCardSelection(cardTypes, cardIndices) {
     const cardsArr = [];
     const nextPlayerArr = [];
@@ -190,6 +215,7 @@ class Game {
           newCard.model.reset = false;
           player.addCard(newCard, playerCardIndices[cardInx]);
           this.scene.setPlayerCardModel(newCard, player.cards.length, playerCardIndices[cardInx]);
+          newCard.model.updateWorldMatrix();
 
           cards[cardInx] = newCard;
         });
@@ -229,10 +255,12 @@ class Game {
 
         break;
       case "main":
+        const playBtn = document.querySelector("#play-card");
         // TODO: Set up main game logic serverside.
-        if (card.player && card.player.mainPlayer && card.player.turn) {
-          card.player.turn = false;
-          card.player.playCard(card);
+        if (card.player) {
+          this.selectedCard = this.scene.setMainAnimation(card);
+          playBtn.dispatchEvent(new Event("click"));
+          // card.player.playCard(card);
 
           // TODO: Manage player turns
         }

@@ -58,8 +58,8 @@ function handleGame(ws) {
             newPlayer.ws = ws;
             
             if (!playerReload) {
-              newPlayer.index = game.currentPlayerIndex;
-              game.currentPlayerIndex++;
+              newPlayer.index = game.newestPlayerIndex;
+              game.newestPlayerIndex++;
             }
 
             for (const otherPlayer of game.players.sort((a, b) => a.index - b.index)) {
@@ -121,7 +121,6 @@ function handleGame(ws) {
               let cardToChangeToInx = 0;
               for (let j = 0; j<player.cards.length; ++j) {
                 if (player.selectionCards.includes(player.cards[j])) {
-                  console.log(cardToChangeToInx);
 
                   player.cards.splice(j, 1, previousPlayer.selectionCards[cardToChangeToInx]);
                   cardToChangeToInx++;
@@ -140,11 +139,13 @@ function handleGame(ws) {
               // Change who has what cards clientside
               player.ws.send(`pass-cards ${previousPlayer.selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
               player.ws.send("main");
+              player.ws.send("turn 0");
 
               ++i;
             }
 
             game.setState("main");
+            game.nextTurn(0);
           }
         }
         break;
@@ -175,8 +176,40 @@ function handleGame(ws) {
           }
         }
         break;
+      case "card-animation-remove":
+        game = GameLogic.getGameFromPlayer(ws);
+        if (game) {
+          const animationID = args[0];
+          for (const otherPlayer of game.players) {
+            if (otherPlayer.ws !== ws) {
+              otherPlayer.ws.send(`card-animation-remove ${animationID}`);
+              game.pastAnimations.push(["remove", animationID]);
+            }
+          }
+        }
+        break;
       case "main":
         // TODO: Main game logic
+        game = GameLogic.getGameFromPlayer(ws);
+
+        if (game) {
+          const player = game.getPlayer(ws);
+          const cardType = args[0];
+          const cardInx = args[1];
+          
+          if (player.turn && player.cards.includes(cardType)) {
+            game.nextTurn();
+            player.cards.splice(player.cards.indexOf(cardType), 1);
+            for (const otherPlayer of game.players) {
+              if (otherPlayer === player) {
+                ws.send(`play-card ${player.index} ${cardType} ${cardInx}`);
+              } else {
+                otherPlayer.ws.send(`play-card ${player.index} ${cardType} ${game.indexMapper[cardInx] % player.cards.length}`);
+              }
+              otherPlayer.ws.send(`turn ${game.turn}`);
+            }
+          }
+        }
         break;
     }
   });

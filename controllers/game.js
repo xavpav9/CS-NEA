@@ -8,6 +8,7 @@ class Player {
     this.selectionIndices = []; // For animations
     this.cards = []; // The card types
     this.online = true; // If the player disconnects
+    this.turn = false;
   }
 }
 
@@ -50,7 +51,8 @@ class GameLogic {
     this.dealt = false;
     this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
     this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog)
-    this.currentPlayerIndex = 0; // Index of player being added next
+    this.newestPlayerIndex = 0; // Index of player being added next
+    this.turn = 0;
 
     const values = [];
     for (let i=0; i<52; ++i) values.push(i);
@@ -112,6 +114,13 @@ class GameLogic {
   setState(state) {
     this.pastAnimations = [];
     this.state = state;
+  }
+
+  nextTurn(turn=-1) {
+    this.turn = (turn === -1) ? (this.turn + 1) % this.players.length : turn;
+    this.players.forEach((player, inx) => {
+      player.turn = (this.turn === inx);
+    });
   }
 
   delete() {

@@ -122,6 +122,19 @@ class Scene {
     return this.playerCards.filter(card => card.getAnimationType() === "upstick" && card.player === player);
   }
 
+  setMainAnimation(card) {
+    const player = card.player;
+
+    if (player && player.mainPlayer && player.turn) {
+      if (!this.playerCards.find(card => card.getAnimationType() === "upstick" && card.player === player)) {
+        card.setAnimation(new Animation("upstick", 0));
+        return card;
+      }
+    }
+
+    return null;
+  }
+
   playCard(card) {
     // Position of card relative to origin
     const position = card.model.worldMatrix.slice(12,15);

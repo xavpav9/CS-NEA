@@ -3,8 +3,11 @@ import {rp} from "./ui.js";
 import {Card} from "./objects.js";
 
 // TODO:
-//  - Fix animation issue - When hovering at bottom of card, it jitters.
+//  - When hovering at bottom of card, it jitters.
 //  - If there is a render issue, allow the user to reset the canvas.
+//  - Sometimes, only two cards are passed to the player instead of three.
+//  - Game order is not kept and animations break in main state when more that 2 players.
+//  - If a player selects then reloads while another is still loading, the animations break.
 
 const canvas = document.querySelector("#c");
 const game = new Game(canvas, 4);
@@ -14,10 +17,16 @@ const websocket = new WebSocket("ws://127.0.0.1:8080/play"); // localhost
 const DomHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
   const sortCardsBtn = document.querySelector("#sort-cards");
+  const playCardBtn = document.querySelector("#play-card");
   hideSendCardsBtn();
+  hidePlayCardBtn();
 
   function hideSendCardsBtn() {
     sendCardsBtn.style.display = "none";
+  }
+  
+  function hidePlayCardBtn() {
+    playCardBtn.style.display = "none";
   }
 
   function showSendCardsBtn() {
@@ -26,6 +35,7 @@ const DomHandler = (function() {
 
   return {
     hideSendCardsBtn,
+    hidePlayCardBtn,
     showSendCardsBtn,
   };
 })();
@@ -33,6 +43,7 @@ const DomHandler = (function() {
 const WebsocketHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
   const sortCardsBtn = document.querySelector("#sort-cards");
+  const playCardBtn = document.querySelector("#play-card");
   let name = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "user")[1];
   let uuid = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "uuid")[1];
   let connected = false;
@@ -50,6 +61,19 @@ const WebsocketHandler = (function() {
     }
   });
 
+  playCardBtn.addEventListener("click", evt => {
+    const card = game.getSelectedCard();
+    const mainPlayer = game.getMainPlayer();
+
+    if (mainPlayer.turn && card.player) {
+      console.log(card);
+
+      const cardInx = card.player.cards.indexOf(card);
+      mainPlayer.turn = false;
+      websocket.send(`main ${card.type} ${cardInx}`)
+    }
+  });
+
   sortCardsBtn.addEventListener("click", evt => {
     game.sortMainPlayerCards();
   });
@@ -62,7 +86,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardTypes;
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, playerInx, mainPlayer;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -106,6 +130,40 @@ const WebsocketHandler = (function() {
           otherPlayerName = args[1];
           game.addPlayer("back", false, otherPlayerUUID, otherPlayerName);
           break;
+        case "turn":
+          playerInx = parseInt(args[0]);
+          game.players.forEach((player, inx) => {
+            player.turn = (playerInx === inx);
+          });
+          break;
+        case "play-card":
+          playerInx = parseInt(args[0]);
+          cardType = args[1];
+          cardInx = parseInt(args[2]);
+
+          mainPlayer = game.getMainPlayer();
+          if (game.players.indexOf(mainPlayer) === playerInx) {
+            const card = mainPlayer.cards.find(card => card.type === cardType);
+
+            card.model.reset = false;
+            mainPlayer.playCard(card);
+          } else {
+            const player = game.players[playerInx];
+            game.replacePlayerCard(player, cardType, cardInx);
+            const card = player.cards[cardInx];
+
+            card.model.reset = false;
+            game.scene.setPlayerCardModel(card, player.cards.length, cardInx);
+            card.model.updateWorldMatrix();
+
+            for (const card of player.cards) {
+              // When playing a card, it messes with the card sender's animation, so just clear animations.
+              card.setAnimation(null, true, false);
+            }
+
+            player.playCard(player.cards[cardInx]);
+          }
+
         case "card-animation":
           animationJSON = args.slice(0, -2).join(" ");
           otherPlayerUUID = args[1];
@@ -124,6 +182,15 @@ const WebsocketHandler = (function() {
             game.reverseCardAnimation(animationID);
           } else {
             game.animationBacklog.push(["reverse", animationID]);
+          }
+          break;
+        case "card-animation-remove":
+          animationID = parseInt(args[0]);
+
+          if (game.dealt) {
+            game.removeCardAnimation(animationID);
+          } else {
+            game.animationBacklog.push(["remove", animationID]);
           }
           break;
         case "animation-backlog":
@@ -147,7 +214,7 @@ const WebsocketHandler = (function() {
           game.dealt = true;
 
           // Set main player cards
-          const mainPlayer = game.getMainPlayer();
+          mainPlayer = game.getMainPlayer();
           if (mainPlayer) {
             for (const cardType of cardTypes) {
               game.addPlayerCard(mainPlayer, cardType);
@@ -177,12 +244,12 @@ const WebsocketHandler = (function() {
     });
   });
 
-  function sendCardAnimation(animation, card, reverse=false) {
-    if (animation === null) {
-        websocket.send(`card-animation ${JSON.stringify(null)} ${card.player.uuid} ${card.player.cards.indexOf(card)}`);
-    } else if (["up", "upstick"].includes(animation.type) && card.player) {
+  function sendCardAnimation(animation, card, reverse=false, remove=false) {
+    if (animation && ["up", "upstick"].includes(animation.type) && card.player) {
       if (reverse) {
         websocket.send(`card-animation-reverse ${animation.id}`);
+      } else if (remove) {
+        websocket.send(`card-animation-remove ${animation.id}`);
       } else {
         const animationJSON = JSON.stringify(animation);
         websocket.send(`card-animation ${animationJSON} ${card.player.uuid} ${card.player.cards.indexOf(card)}`);
