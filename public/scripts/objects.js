@@ -344,7 +344,7 @@ class Pickup extends DOC {
     return (this.cards.length) ? this.cards.at(-1 - this.topCardOffset) : false;
   }
   
-  dealCard(player, cardInx) {
+  dealCard(player, cardInx, cardsDealt=null, cardsDealtInx=0) {
     const card = this.topCard();
     this.topCardOffset++; // Keep card in pickup pile, but it is not actually the top card
 
@@ -353,6 +353,9 @@ class Pickup extends DOC {
       card.setAnimation(null);
       card.model.startRendering = false;
       card.model.rendering = false;
+
+      // So that game knows when cards have finished being dealt.
+      if (cardsDealt) cardsDealt[cardsDealtInx] = true;
 
       // Move card from here to player
       this.popCard();

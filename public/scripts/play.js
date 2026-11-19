@@ -62,7 +62,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationObj, cardInx, animationID, cardTypes;
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardTypes;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -107,14 +107,14 @@ const WebsocketHandler = (function() {
           game.addPlayer("back", false, otherPlayerUUID, otherPlayerName);
           break;
         case "card-animation":
-          animationObj = JSON.parse(args.slice(0, -2).join(" "));
+          animationJSON = args.slice(0, -2).join(" ");
           otherPlayerUUID = args[1];
           cardInx = parseInt(args[2]);
 
           if (game.dealt) {
-            game.setCardAnimation(animationObj, otherPlayerUUID, cardInx);
+            game.setCardAnimation(JSON.parse(animationJSON), otherPlayerUUID, cardInx);
           } else {
-            game.animationBacklog.push(["normal", animationObj, otherPlayerUUID, cardInx]);
+            game.animationBacklog.push(["normal", animationJSON, otherPlayerUUID, cardInx]);
           }
           break;
         case "card-animation-reverse":
@@ -162,7 +162,7 @@ const WebsocketHandler = (function() {
             }
           }
 
-          // TODO: Fix code below to sort out animation backlog.
+          // Sort out animation backlog.
           const clearAnimationBacklogAfterReload = () => {
             if (mainPlayer.cards.every(card => card.model.ready)) {
               game.clearAnimationBacklog();

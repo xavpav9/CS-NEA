@@ -1,10 +1,6 @@
 import GameLogic from "./game.js";
 import Game from "./../models/game.js";
 
-//TODO:
-//  - Use player.cards to keep track of who has what cards, instead of relying on the client.
-
-
 async function get(req, res) {
   const gameID = req.params.gameID;
   const name = req.session.user;
@@ -92,7 +88,7 @@ function handleGame(ws) {
               game.deck.empty();
               game.dealt = true;
             } else if (["start", "main"].includes(game.state)) {
-              // TODO: Player already in running game, so send them the correct details to get back into the game.
+              // Player already in running game, so send them the correct details to get back into the game.
               const numsOfCards = game.players.map(player => player.cards.length);
 
               ws.send(game.state);
@@ -119,7 +115,20 @@ function handleGame(ws) {
             for (const player of game.players) {
               let previousPlayerIndex = player.index - 1;
               if (previousPlayerIndex < 0) previousPlayerIndex += game.players.length;
+              const previousPlayer = game.players.find(p => p.index === previousPlayerIndex);
 
+              // Change who has what cards serverside
+              let cardToChangeToInx = 0;
+              for (let j = 0; j<player.cards.length; ++j) {
+                if (player.selectionCards.includes(player.cards[j])) {
+                  console.log(cardToChangeToInx);
+
+                  player.cards.splice(j, 1, previousPlayer.selectionCards[cardToChangeToInx]);
+                  cardToChangeToInx++;
+                }
+              }
+
+              // Map other player indices with indexMapper
               const currentAllSelectionIndices = allSelectionIndices.map((num, inx) => {
                 if (inx < i * 3 || inx >= (i + 1) * 3) {
                   return game.indexMapper[num] % game.getPlayer(ws).cards.length; // Not current player indices, so send the mapped ones.
@@ -128,7 +137,8 @@ function handleGame(ws) {
                 }
               });
 
-              player.ws.send(`pass-cards ${game.players.find(otherPlayer => otherPlayer.index === previousPlayerIndex).selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
+              // Change who has what cards clientside
+              player.ws.send(`pass-cards ${previousPlayer.selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
               player.ws.send("main");
 
               ++i;

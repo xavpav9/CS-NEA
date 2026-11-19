@@ -101,18 +101,19 @@ class Game {
 
   clearAnimationBacklog() {
     // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
-    let animation = this.animationBacklog.shift();
-    while (animation) {
-      if (animation[0] === "normal") {
-        const animationObj = animation[1];
-        const playerUUID = animation[2];
-        const cardInx = animation[3];
-        this.setCardAnimation(animationObj, playerUUID, cardInx);
+    let animationInfo = this.animationBacklog.shift();
+    console.log(this.players);
+    while (animationInfo) {
+      if (animationInfo[0] === "normal") {
+        const animationJSON = animationInfo[1];
+        const playerUUID = animationInfo[2];
+        const cardInx = animationInfo[3];
+        this.setCardAnimation(JSON.parse(animationJSON), playerUUID, cardInx);
       } else {
-        const animationID = animation[1];
+        const animationID = animationInfo[1];
         this.reverseCardAnimation(animationID);
       }
-      animation = this.animationBacklog.shift();
+      animationInfo = this.animationBacklog.shift();
     }
   }
 
@@ -120,24 +121,26 @@ class Game {
     if (!(this.justDealt || this.dealt)) {
       const deckLength = this.pickupPile.cards.length;
       const cardsDealt = []; // Booleans to say if a card has been dealt yet.
+      const cardsJustDealt = [];
 
-      const dealCard = (player, currentCard, inx) => {
+      const dealCard = (player, cardInx, cardsDealtInx) => {
         setTimeout(() => {
-          if (inx === 0 || cardsDealt[inx-1]) {
-            this.pickupPile.dealCard(player, currentCard);
-            cardsDealt[inx] = true;
+          if (cardsDealtInx === 0 || cardsJustDealt[cardsDealtInx-1]) {
+            this.pickupPile.dealCard(player, cardInx, cardsDealt, cardsDealtInx);
+            cardsJustDealt[cardsDealtInx] = true;
           } else {
-            setTimeout(() => dealCard(player, currentCard, inx), 50);
+            setTimeout(() => dealCard(player, cardInx, cardsDealtInx), 50);
           }
         });
       }
 
       for (let i=0; i<deckLength; ++i) {
         cardsDealt.push(false);
+        cardsJustDealt.push(false);
         const player = this.players[i % (this.players.length)];
-        const currentCard = Math.floor(i / this.players.length);
+        const cardInx = Math.floor(i / this.players.length);
 
-        setTimeout(() => dealCard(player, currentCard, i), i*50);;
+        setTimeout(() => dealCard(player, cardInx, i), i*50);;
       }
 
       this.justDealt = true;
