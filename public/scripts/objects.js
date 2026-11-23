@@ -378,7 +378,7 @@ class Discard extends DOC {
 }
 
 class Player {
-  constructor(scene, mainPlayer, uuid, name) {
+  constructor(scene, mainPlayer, uuid, name, side="back") {
     this.scene = scene;
     this.cards = [];
     this.tricks = [];
@@ -398,7 +398,7 @@ class Player {
     this.angle = 0; // Angle around table
 
     // Set up player rendering
-    this.scene.addPlayer(this);
+    this.scene.addPlayer(this, side);
 
     this.discard.player = this;
     this.scene.addDiscard(this.discard);

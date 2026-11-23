@@ -123,6 +123,10 @@ class GameLogic {
     });
   }
 
+  getTurnPlayer() {
+    return this.players[this.turn];
+  }
+
   delete() {
     delete GameLogic.games[this.id];
   }

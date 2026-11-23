@@ -63,8 +63,8 @@ class Game {
   }
 
   addPlayer(side, mainPlayer, uuid, name) {
-    if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer, uuid, name));
-    else if (side === "back") this.players.push(new Player(this.scene, mainPlayer, uuid, name));
+    if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer, uuid, name, side));
+    else if (side === "back") this.players.push(new Player(this.scene, mainPlayer, uuid, name, side));
   }
 
   addPlayerCard(player, cardType) {
@@ -119,7 +119,6 @@ class Game {
   clearAnimationBacklog() {
     // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
     let animationInfo = this.animationBacklog.shift();
-    console.log(this.players);
     while (animationInfo) {
       const type = animationInfo[0];
       if (type === "normal") {

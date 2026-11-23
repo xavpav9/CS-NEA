@@ -5,9 +5,12 @@ import {Card} from "./objects.js";
 // TODO:
 //  - When hovering at bottom of card, it jitters.
 //  - If there is a render issue, allow the user to reset the canvas.
-//  - Sometimes, only two cards are passed to the player instead of three.
-//  - Game order is not kept and animations break in main state when more that 2 players.
 //  - If a player selects then reloads while another is still loading, the animations break.
+//  - Functionality for reloading in main game state.
+//  - card-animation-remove gets sent back to the client it came from.
+//  - Often, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and causes the game to break.
+//  - Remove an animation from the backlog when a card-animation-remove is received.
+//  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
 
 const canvas = document.querySelector("#c");
 const game = new Game(canvas, 4);
@@ -66,8 +69,6 @@ const WebsocketHandler = (function() {
     const mainPlayer = game.getMainPlayer();
 
     if (mainPlayer.turn && card.player) {
-      console.log(card);
-
       const cardInx = card.player.cards.indexOf(card);
       mainPlayer.turn = false;
       websocket.send(`main ${card.type} ${cardInx}`)
@@ -86,7 +87,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, playerInx, mainPlayer;
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, mainPlayer;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -131,24 +132,24 @@ const WebsocketHandler = (function() {
           game.addPlayer("back", false, otherPlayerUUID, otherPlayerName);
           break;
         case "turn":
-          playerInx = parseInt(args[0]);
+          otherPlayerUUID = args[0];
           game.players.forEach((player, inx) => {
-            player.turn = (playerInx === inx);
+            player.turn = (otherPlayerUUID === player.uuid);
           });
           break;
         case "play-card":
-          playerInx = parseInt(args[0]);
+          otherPlayerUUID = args[0];
           cardType = args[1];
           cardInx = parseInt(args[2]);
 
           mainPlayer = game.getMainPlayer();
-          if (game.players.indexOf(mainPlayer) === playerInx) {
+          if (mainPlayer.uuid === otherPlayerUUID) {
             const card = mainPlayer.cards.find(card => card.type === cardType);
 
             card.model.reset = false;
             mainPlayer.playCard(card);
           } else {
-            const player = game.players[playerInx];
+            const player = game.players.find(p => p.uuid === otherPlayerUUID);
             game.replacePlayerCard(player, cardType, cardInx);
             const card = player.cards[cardInx];
 
@@ -163,7 +164,7 @@ const WebsocketHandler = (function() {
 
             player.playCard(player.cards[cardInx]);
           }
-
+          break;
         case "card-animation":
           animationJSON = args.slice(0, -2).join(" ");
           otherPlayerUUID = args[1];

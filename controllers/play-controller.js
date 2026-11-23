@@ -62,15 +62,21 @@ function handleGame(ws) {
               game.newestPlayerIndex++;
             }
 
+            const playerBefores = [];
             for (const otherPlayer of game.players.sort((a, b) => a.index - b.index)) {
               if (otherPlayer.ws && otherPlayer !== newPlayer) {
                 // Send newPlayer.ws player order information
-                if (otherPlayer.index < newPlayer.index) ws.send(`player-before ${otherPlayer.uuid} ${otherPlayer.name}`);
+                if (otherPlayer.index < newPlayer.index) playerBefores.push(otherPlayer); // These need to be sent in reverse order (player-before adds player to start, so first needs to be sent last).
                 else ws.send(`player-after ${otherPlayer.uuid} ${otherPlayer.name}`);
 
                 // If newPlayer is new (not a reload) send otherPlayer.ws player order information
                 if (!playerReload) otherPlayer.ws.send(`player-after ${newPlayer.uuid} ${newPlayer.name}`);
               }
+            }
+
+            playerBefores.reverse();
+            for (const otherPlayer of playerBefores) {
+                ws.send(`player-before ${otherPlayer.uuid} ${otherPlayer.name}`);
             }
 
             const maxPlayerCount = gameInfo.max_player_count;
@@ -139,7 +145,7 @@ function handleGame(ws) {
               // Change who has what cards clientside
               player.ws.send(`pass-cards ${previousPlayer.selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
               player.ws.send("main");
-              player.ws.send("turn 0");
+              player.ws.send(`turn ${game.getTurnPlayer().uuid}`);
 
               ++i;
             }
@@ -180,8 +186,9 @@ function handleGame(ws) {
         game = GameLogic.getGameFromPlayer(ws);
         if (game) {
           const animationID = args[0];
+          const player = game.getPlayer(ws);
           for (const otherPlayer of game.players) {
-            if (otherPlayer.ws !== ws) {
+            if (otherPlayer !== player) {
               otherPlayer.ws.send(`card-animation-remove ${animationID}`);
               game.pastAnimations.push(["remove", animationID]);
             }
@@ -202,11 +209,11 @@ function handleGame(ws) {
             player.cards.splice(player.cards.indexOf(cardType), 1);
             for (const otherPlayer of game.players) {
               if (otherPlayer === player) {
-                ws.send(`play-card ${player.index} ${cardType} ${cardInx}`);
+                ws.send(`play-card ${player.uuid} ${cardType} ${cardInx}`);
               } else {
-                otherPlayer.ws.send(`play-card ${player.index} ${cardType} ${game.indexMapper[cardInx] % player.cards.length}`);
+                otherPlayer.ws.send(`play-card ${player.uuid} ${cardType} ${game.indexMapper[cardInx] % player.cards.length}`);
               }
-              otherPlayer.ws.send(`turn ${game.turn}`);
+              otherPlayer.ws.send(`turn ${game.getTurnPlayer().uuid}`);
             }
           }
         }

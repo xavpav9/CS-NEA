@@ -148,8 +148,9 @@ class Scene {
     card.reverseAnimation("play");
   }
 
-  async addPlayer(player) {
-    this.players.push(player);
+  async addPlayer(player, side) {
+    if (side === "back") this.players.push(player);
+    else this.players.unshift(player);
     player.model.setParent(this.origin);
 
     if (player.mainPlayer) player.position = this.cameraPosition;
@@ -157,8 +158,7 @@ class Scene {
     // Lay out players in a regular polygon around centre
     const playerCount = this.players.length;
     if (playerCount > 1) {
-      const start = this.players.reduce((acc, player, inx) => player.mainPlayer ? inx : acc, 0);
-      let i = (start + 1) % playerCount;
+      const start = this.players.reduce((acc, p, inx) => (p.mainPlayer) ? inx : acc, 0);
       let count = 1;
 
       for (let i=((start + 1)%playerCount); i!=start; i=(i+1)%playerCount) {
@@ -294,28 +294,32 @@ class Scene {
       if (this.textures.includes(model.image)) {
         model.w.textureUnit = this.textures.indexOf(model.image)
       } else {
-        model.w.textureUnit = this.textureCount
+        model.w.textureUnit = this.textureCount++;
         this.textures.push(model.image);
+
+        const setUpTexture = () => {
+          const texture = this.gl.createTexture();
+          this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
+          this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+
+          this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+          this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+          this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+          this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+
+          mipLevel = 0;
+          internalFormat = this.gl.RGBA;
+          srcFormat = this.gl.RGBA;
+          srcType = this.gl.UNSIGNED_BYTE;
+          this.gl.texImage2D(this.gl.TEXTURE_2D, mipLevel, internalFormat, srcFormat, srcType, model.image);
+          this.gl.generateMipmap(this.gl.TEXTURE_2D);
+        };
+
+        if (model.image.complete) setUpTexture(); // Image has loaded
+        else model.image.addEventListener("load", () => { // Image has not loaded yet
+          setUpTexture();
+        });
       };
-
-      // Set up texture
-      const texture = this.gl.createTexture();
-      this.gl.activeTexture(this.gl.TEXTURE0 + model.w.textureUnit);
-      this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-
-      mipLevel = 0;
-      internalFormat = this.gl.RGBA;
-      srcFormat = this.gl.RGBA;
-      srcType = this.gl.UNSIGNED_BYTE;
-      this.gl.texImage2D(this.gl.TEXTURE_2D, mipLevel, internalFormat, srcFormat, srcType, model.image);
-      this.gl.generateMipmap(this.gl.TEXTURE_2D);
-
-      if (model.w.textureUnit === this.textureCount) this.textureCount++;
     }
 
 
@@ -439,10 +443,11 @@ class Scene {
     return model;
   }
 
-  setDiscardCardModel(card) {
+  setDiscardCardModel(card, count) {
     const model = card.model;
 
-    model.source.rotation[1] += -card.player.angle;
+    model.source.rotation[1] += card.player.angle;
+    model.source.translation[1] += count * .05; // .05 = depth of card
 
     return model;
   }
@@ -601,8 +606,10 @@ class Scene {
         player.discard.model.source.translation[2] += player.position[2] * 0.1;
 
 
+        let discardCardCount = 0;
         for (const card of player.discard.cards) {
-          this.setDiscardCardModel(card)
+          this.setDiscardCardModel(card, discardCardCount)
+          discardCardCount++;
         }
       }
 
