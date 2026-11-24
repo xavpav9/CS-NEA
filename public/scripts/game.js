@@ -116,6 +116,14 @@ class Game {
     }
   }
 
+  clearAllAnimations() {
+    for (const player of this.players) {
+      for (const card of player.cards) {
+        card.setAnimation(null);
+      }
+    }
+  }
+
   clearAnimationBacklog() {
     // While loop ensures that if an animation is received while this is happening, it gets played in the correct chronological order instead of asynchronously.
     let animationInfo = this.animationBacklog.shift();
@@ -229,17 +237,21 @@ class Game {
       numOfCardsArr.push(nextPlayer.cards.length);
     });
 
-    // Pass cards to correct destinations (but first, wait until models are ready)
-    const passCards = () => {
-      if (cardsArr.every(cards => cards.every(card => card.model.ready))) {
-        this.players.forEach((player, inx) => {
-          player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx], numOfCardsArr[inx]);
-        });
-      } else {
-        setTimeout(() => passCards(), 50);
+    return new Promise((resolve, reject) => {
+      // Pass cards to correct destinations (but first, wait until models are ready)
+      const passCards = () => {
+        if (cardsArr.every(cards => cards.every(card => card.model.ready))) {
+          this.players.forEach((player, inx) => {
+            player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx], numOfCardsArr[inx]);
+          });
+          resolve();
+        } else {
+          setTimeout(() => passCards(), 50);
+        }
       }
-    }
-    passCards();
+
+      passCards();
+    });
   }
   
   click(card) {

@@ -109,7 +109,7 @@ function handleGame(ws) {
         game = GameLogic.getGameFromPlayer(ws);
         if (game) {
           game.getPlayer(ws).selectionCards = args.slice(0, 3);
-          game.getPlayer(ws).selectionIndices = args.slice(3, 6);
+          game.getPlayer(ws).selectionIndices = args.slice(3, 6).map(val => parseInt(val));
 
           if (game.state === "start" && game.players.every(player => player.selectionCards.length === 3)) {
             const allSelectionIndices = [];
@@ -150,7 +150,7 @@ function handleGame(ws) {
               ++i;
             }
 
-            game.setState("main");
+            game.setState("main"); // Also sets pastAnimations to [].
             game.nextTurn(0);
           }
         }

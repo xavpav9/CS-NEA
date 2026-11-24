@@ -85,7 +85,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, mainPlayer;
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, mainPlayer, cardIndices;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -95,12 +95,14 @@ const WebsocketHandler = (function() {
         case "deal":
           // args = cards dealt to player
           game.setMainPlayerCards(args);
-          const interval = setInterval(() => {
+          const dealCard = () => {
             if (game.pickupPile.cards.every(card => card.model.ready)) {
-              game.deal(); // Load models
-              clearInterval(interval);
+              setTimeout(() => game.deal(), 500); // Deal 500ms after models load
+            } else {
+              setTimeout(() => dealCard(), 50);
             }
-          }, 500);
+          };
+          dealCard();
           break;
         case "start":
           DomHandler.showSendCardsBtn();
@@ -115,9 +117,12 @@ const WebsocketHandler = (function() {
         case "pass-cards":
           // args = 3 cards being passed to player, then all the player card indices for animation
           cardTypes = args.slice(0, 3);
-          const cardIndices = args.slice(3).map(num => parseInt(num));
-          game.passCardSelection(cardTypes, cardIndices);
-          setTimeout(() => game.getMainPlayer().passingSelection = false, rp.PASSCARD_ANIMATION_TIME);
+          cardIndices = args.slice(3).map(num => parseInt(num));
+          
+          game.clearAllAnimations();
+          game.passCardSelection(cardTypes, cardIndices).then(() => {
+            setTimeout(() => game.getMainPlayer().passingSelection = false, rp.PASSCARD_ANIMATION_TIME + 50);
+          });
           break;
         case "player-before":
           otherPlayerUUID = args[0];
