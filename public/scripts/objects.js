@@ -329,10 +329,18 @@ class Pickup extends DOC {
     this.topCardOffset = 0;
   }
 
-  popCard() {
+  empty() {
+    while (this.cards.length) {
+      this.popCard(false);
+    }
+  }
+
+  popCard(keepModel=true) {
     if (this.cards.length) {
-      const card = this.cards.splice(this.cards.length-1, 1)[0];
+      const card = this.cards.pop();
       this.scene.removeDocCard(card);
+
+      if (!keepModel) this.scene.removeModel(card.model);
 
       return card;
     } else return false;

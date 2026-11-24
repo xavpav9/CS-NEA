@@ -7,6 +7,7 @@ class Player {
     this.selectionCards = [];
     this.selectionIndices = []; // For animations
     this.cards = []; // The card types
+    this.discard = []; // The discard card types (first index = bottom of pile)
     this.online = true; // If the player disconnects
     this.turn = false;
   }

@@ -35,11 +35,7 @@ class Deck {
   }
 
   empty() {
-    let card = this.cards.pop();
-    while (card) {
-      card.doc.removeCard(card, false);
-      card = this.cards.pop();
-    }
+    this.cards = [];
   }
 }
 
@@ -62,6 +58,36 @@ class Game {
     this.scene.render();
   }
 
+  clearPlayerInfo() {
+    for (let i=0; i<this.players.length;) {
+      const player = this.players[i];
+
+      while (player.cards.length) {
+        player.removeCard(player.cards[0], false);
+      }
+
+      if (!player.mainPlayer) { // Do not clear mainPlayer player.
+        this.players.splice(i, 1);
+        this.scene.removePlayer(player);
+      } else i++;
+    }
+
+    // Clear up any other cards (including hopefully any glitchy ones)
+    for (const card of this.scene.getAllCards()) {
+      if (card.doc) card.doc.removeCard(card, false);
+      else if (card.player) card.player.removeCard(card, false);
+      else {
+        this.scene.removePlayerCard(card);
+        this.scene.removeDocCard(card);
+        this.scene.removeModel(card.model);
+      }
+    }
+  }
+
+  getPlayer(uuid) {
+    return this.players.find(player => player.uuid === uuid);
+  }
+
   addPlayer(side, mainPlayer, uuid, name) {
     if (side === "front") this.players.unshift(new Player(this.scene, mainPlayer, uuid, name, side));
     else if (side === "back") this.players.push(new Player(this.scene, mainPlayer, uuid, name, side));
@@ -70,6 +96,12 @@ class Game {
   addPlayerCard(player, cardType) {
     const card = new Card(this.scene, cardType);
     player.addCard(card);
+  }
+
+  addPlayerDiscardCard(player, cardType) {
+    const card = new Card(this.scene, cardType);
+    card.player = player;
+    player.discard.addCard(card);
   }
 
   replacePlayerCard(player, cardType, cardInx) {
@@ -273,7 +305,7 @@ class Game {
       case "main":
         const playBtn = document.querySelector("#play-card");
         // TODO: Set up main game logic serverside.
-        if (card.player) {
+        if (card.player && !card.player.sorting) {
           this.selectedCard = this.scene.setMainAnimation(card);
           playBtn.dispatchEvent(new Event("click"));
           // card.player.playCard(card);

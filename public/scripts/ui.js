@@ -35,7 +35,7 @@ class Scene {
     this.textureCount = 1; // 0 is the picking texture
     this.textures = [null]; // Cache of textures
 
-    this.cameraPosition = [0, 20, 34];
+    this.cameraPosition = [0, 15, 27];
     this.origin = new Node(); // Root node of scene graph
     this.currentId = 0; // Current thing being picked (0 = nothing)
     this.active = true; // Whether rendering or not
@@ -175,6 +175,10 @@ class Scene {
         count++;
       }
     }
+  }
+
+  removePlayer(player) {
+    if (this.players.includes(player)) this.players.splice(this.players.indexOf(player), 1);
   }
 
 
@@ -601,9 +605,9 @@ class Scene {
         }
 
         // Set up discard piles infront of players
-        player.discard.model.source.translation[0] += player.position[0] * 0.1;
+        player.discard.model.source.translation[0] += player.position[0] * 0.15;
         player.discard.model.source.translation[1] += 0;
-        player.discard.model.source.translation[2] += player.position[2] * 0.1;
+        player.discard.model.source.translation[2] += player.position[2] * 0.15;
 
 
         let discardCardCount = 0;
@@ -748,8 +752,9 @@ class Scene {
 
       // Draw models to canvas
       for (const model of this.models) {
-        if (model.toBeRemoved && this.models.includes(model)) this.models.splice(this.models.indexOf(model), 1);
-        else if (model.ready && model.rendering) {
+        if (model.toBeRemoved && this.models.includes(model)) {
+          this.models.splice(this.models.indexOf(model), 1);
+        } else if (model.ready && model.rendering) {
           if (model.type === "card") {
             this.gl.enable(this.gl.CULL_FACE);
             this.gl.cullFace(this.gl.BACK);

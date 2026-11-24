@@ -43,6 +43,23 @@ function handleGame(ws) {
 
     // console.log(command, args);
     switch (command) {
+      case "refresh":
+        game = GameLogic.getGameFromPlayer(ws);
+        
+        if (game) {
+          const player = game.getPlayer(ws);
+
+          player.selectionCards = [];
+          player.selectionIndices = [];
+          game.clearPlayerPastAnimations(player);
+
+          for (const otherPlayer of game.players) {
+            if (otherPlayer !== player) {
+              otherPlayer.ws.send(`player-leave ${player.uuid}`);
+            }
+          }
+        }
+        // Then carry on to game
       case "game":
         const gameID = parseInt(args[0]);
         const name = args[1];
@@ -54,7 +71,7 @@ function handleGame(ws) {
           const newPlayer = game.getPlayer(uuid);
 
           if (newPlayer && gameInfo && game) {
-            const playerReload = Boolean(newPlayer.ws); // Whether the player has reloaded the page.
+            const playerReload = Boolean(newPlayer.ws); // Whether the player has reloaded the page or pressed refresh button.
             newPlayer.ws = ws;
             
             if (!playerReload) {
@@ -99,6 +116,13 @@ function handleGame(ws) {
 
               ws.send(game.state);
               ws.send(`cards ${game.players.length} ${numsOfCards.join(" ")} ${newPlayer.cards.join(" ")}`);
+              for (const player of game.players) {
+                if (player.discard.length) {
+                  ws.send(`discard ${player.uuid} ${player.discard.join(" ")}`);
+                }
+              }
+
+              if (game.state === "main") newPlayer.ws.send(`turn ${game.getTurnPlayer().uuid}`);
             }
 
             ws.send(`animation-backlog ${JSON.stringify(game.pastAnimations)}`);
@@ -208,6 +232,7 @@ function handleGame(ws) {
           if (player.turn && player.cards.includes(cardType)) {
             game.nextTurn();
             player.cards.splice(player.cards.indexOf(cardType), 1);
+            player.discard.push(cardType);
             for (const otherPlayer of game.players) {
               if (otherPlayer === player) {
                 ws.send(`play-card ${player.uuid} ${cardType} ${cardInx}`);
@@ -232,7 +257,7 @@ function handleGame(ws) {
       game.clearPlayerPastAnimations(player);
 
       for (const otherPlayer of game.players) {
-        if (otherPlayer.ws !== ws) {
+        if (otherPlayer !== player) {
           otherPlayer.ws.send(`player-leave ${player.uuid}`);
         }
       }

@@ -4,9 +4,7 @@ import {Card} from "./objects.js";
 
 // TODO:
 //  - When hovering at bottom of card, it jitters.
-//  - If there is a render issue, allow the user to reset the canvas.
 //  - If a player selects then reloads while another is still loading, the animations break.
-//  - Functionality for reloading in main game state and on join page.
 //  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and causes the game to break.
 //  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
 
@@ -19,6 +17,7 @@ const DomHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
   const sortCardsBtn = document.querySelector("#sort-cards");
   const playCardBtn = document.querySelector("#play-card");
+  const refreshCanvasBtn = document.querySelector("#refresh-canvas");
   hideSendCardsBtn();
   hidePlayCardBtn();
 
@@ -45,6 +44,8 @@ const WebsocketHandler = (function() {
   const sendCardsBtn = document.querySelector("#send-cards");
   const sortCardsBtn = document.querySelector("#sort-cards");
   const playCardBtn = document.querySelector("#play-card");
+  const refreshCanvasBtn = document.querySelector("#refresh-canvas");
+
   let name = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "user")[1];
   let uuid = document.cookie.split(";").map(cookie => cookie.trim().split("=")).find(keyVal => keyVal[0] === "uuid")[1];
   let connected = false;
@@ -77,6 +78,17 @@ const WebsocketHandler = (function() {
     game.sortMainPlayerCards();
   });
 
+  refreshCanvasBtn.addEventListener("click", evt => {
+    if (game.dealt) {
+      const mainPlayer = game.getMainPlayer();
+
+      game.clearPlayerInfo();
+      mainPlayer.passingSelection = false;
+      mainPlayer.sorting = false;
+      websocket.send(`refresh ${canvas.dataset.gameid} ${name} ${uuid}`);
+    }
+  });
+
   websocket.addEventListener("open", () => {
     connected = true;
     websocket.send("play");
@@ -85,7 +97,7 @@ const WebsocketHandler = (function() {
     game.addPlayer("back", true, uuid, name);
 
     websocket.addEventListener("message", evt => {
-      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, mainPlayer, cardIndices;
+      let otherPlayerUUID, otherPlayerName, animationJSON, cardInx, animationID, cardType, cardTypes, mainPlayer, player, cardIndices;
       const [command, ...args] = evt.data.split(" ");
 
       console.log(command, args);
@@ -213,7 +225,7 @@ const WebsocketHandler = (function() {
           const playerCardCounts = args.slice(1, numOfPlayers+1);
           cardTypes = args.slice(numOfPlayers+1);
 
-          game.deck.empty();
+          game.pickupPile.empty();
           game.dealt = true;
 
           // Set main player cards
@@ -242,6 +254,17 @@ const WebsocketHandler = (function() {
           };
           setTimeout(() => clearAnimationBacklogAfterReload(), 500);
 
+          break;
+        case "discard":
+          otherPlayerUUID = args[0];
+          cardTypes = args.slice(1);
+
+          player = game.getPlayer(otherPlayerUUID);
+
+          // Add new discard cards
+          for (const cardType of cardTypes) {
+            game.addPlayerDiscardCard(player, cardType);
+          }
           break;
       }
     });
