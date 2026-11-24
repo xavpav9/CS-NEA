@@ -162,10 +162,11 @@ function handleGame(ws) {
           const playerUUID = args[1];
           const cardInx = game.indexMapper[args[2]] % game.getPlayer(ws).cards.length;
 
+          game.pastAnimations.push([animationJSON, playerUUID, cardInx]);
+
           for (const otherPlayer of game.players) {
             if (otherPlayer.ws !== ws) {
               otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${cardInx}`);
-              game.pastAnimations.push(["normal", animationJSON, playerUUID, cardInx]);
             }
           }
         }
@@ -173,11 +174,11 @@ function handleGame(ws) {
       case "card-animation-reverse":
         game = GameLogic.getGameFromPlayer(ws);
         if (game) {
-          const animationID = args[0];
+          const animationID = parseInt(args[0]);
+          const player = game.getPlayer(ws);
           for (const otherPlayer of game.players) {
-            if (otherPlayer.ws !== ws) {
+            if (otherPlayer !== player) {
               otherPlayer.ws.send(`card-animation-reverse ${animationID}`);
-              game.pastAnimations.push(["reverse", animationID]);
             }
           }
         }
@@ -185,12 +186,12 @@ function handleGame(ws) {
       case "card-animation-remove":
         game = GameLogic.getGameFromPlayer(ws);
         if (game) {
-          const animationID = args[0];
+          const animationID = parseInt(args[0]);
           const player = game.getPlayer(ws);
+          game.removePastAnimation(animationID);
           for (const otherPlayer of game.players) {
             if (otherPlayer !== player) {
               otherPlayer.ws.send(`card-animation-remove ${animationID}`);
-              game.pastAnimations.push(["remove", animationID]);
             }
           }
         }

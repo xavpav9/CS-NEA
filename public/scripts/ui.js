@@ -543,7 +543,7 @@ class Scene {
 
       // Reset TRS and Handle animations
       for (const card of this.getAllCards()) {
-        if (card.model.reset) card.model.source.reset();
+        card.model.source.reset();
 
         card.model.source.scaling = [1.3, 1.3, 1];
 

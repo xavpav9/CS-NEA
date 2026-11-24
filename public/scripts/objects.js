@@ -88,7 +88,6 @@ class Model extends Node { // 3D Model
     this.startRendering = false; // Should this model be rendered starting from the next frame
     this.rendering = false; // Should this model be rendered
     this.toBeRemoved = false; // Remove model on next frame
-    this.reset = true; // Whether the model worldMatrix should reset on each frame or not
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -206,7 +205,6 @@ class Card {
     this.player = null;
     this.doc = null;
     this.animation = null;
-    this.animationFromClient = true; // Whether the animation is clientside, or the server has sent it.
     this.randomness = Math.random(); // A constant random number for variation in card placement
     this.animationPosition = [0, 0, 0]; // A position being used for an animation
 
@@ -221,14 +219,14 @@ class Card {
   static geometryFile = "card.obj";
   static textureFile = "card-atlas.png";
 
-  setAnimation(animation, force=false, animationFromClient=true) {
-    this.animationFromClient = animationFromClient;
+  setAnimation(animation, force=false) {
     if (animation === null) {
-      if (this.animationFromClient && this.player) WebsocketHandler.sendCardAnimation(this.animation, this, false, true);
+      if (this.animation && this.animation.fromClient && this.player) WebsocketHandler.sendCardAnimation(this.animation, this, false, true); // Remove old animation
       this.animation = null;
     } else if (force || this.animation === null || animation.priority > this.animation.priority) {
+      if (this.animation && this.animation.fromClient) WebsocketHandler.sendCardAnimation(this.animation, this, false, true); // Remove old animation
       this.animation = animation;
-      if (this.animationFromClient) WebsocketHandler.sendCardAnimation(animation, this);
+      if (this.animation.fromClient) WebsocketHandler.sendCardAnimation(animation, this); // Send new animation
     }
   }
 
@@ -241,7 +239,7 @@ class Card {
   reverseAnimation(...types) {
     if (this.animation && types.includes(this.animation.type)) {
       this.animation.reverse();
-      if (this.animationFromClient) WebsocketHandler.sendCardAnimation(this.animation, this, true);
+      if (this.animation.fromClient) WebsocketHandler.sendCardAnimation(this.animation, this, true);
     }
   }
 
@@ -436,7 +434,6 @@ class Player {
     this.discard.addCard(card);
 
     this.scene.playCard(card);
-    card.model.reset = true;
   }
 
   passCards(cards, otherPlayer, newCardInxs, numOfCards) { // Cards go to another player
@@ -451,7 +448,6 @@ class Player {
         this.removeCard(card);
         otherPlayer.addCard(card, newCardInxs[inx]);
       });
-      card.model.reset = true;
     });
   }
 
@@ -503,11 +499,12 @@ class Player {
 }
 
 class Animation { // Information about an animation currently taking place.
-  constructor(type, time, currentTime=0, customTranslation=[0,0,0], callback=null, id=null) { // time/ms
+  constructor(type, time, currentTime=0, customTranslation=[0,0,0], callback=null, id=null, fromClient=true) { // time/ms
     // type could be changing a game state, placing a card, declaring the winner etc.
     this.reversed = false;
     this.type = type;
     this.id = id ?? Math.floor(Math.random() * 1_000_000_000_000);
+    this.fromClient = fromClient; // Whether the animation is from the client or server
     this.customTranslation = customTranslation;
     this.callback = callback;
 
@@ -518,7 +515,7 @@ class Animation { // Information about an animation currently taking place.
   }
 
   static createAnimation(ao) { // ao (animationObj) is what the websocket sends for an animation
-    return (ao) ? new Animation(ao.type, ao.maxTime, ao.currentTime, ao.customTranslation, null, ao.id) : null;
+    return (ao) ? new Animation(ao.type, ao.maxTime, ao.currentTime, ao.customTranslation, null, ao.id, false) : null;
   }
 
   static priorityScale = {
@@ -560,7 +557,7 @@ class Animation { // Information about an animation currently taking place.
 
     if (timeFraction === 1) { // Reached end of animation.
       if (this.callback) this.callback(this);
-      else if (this.reversed) object.setAnimation(null); // 1. Cancels animation when back in original place
+      else if (this.reversed) object.setAnimation(null, false); // Cancels animation when back in original place
     };
   }
 }

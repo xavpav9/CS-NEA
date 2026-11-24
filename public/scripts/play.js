@@ -6,10 +6,8 @@ import {Card} from "./objects.js";
 //  - When hovering at bottom of card, it jitters.
 //  - If there is a render issue, allow the user to reset the canvas.
 //  - If a player selects then reloads while another is still loading, the animations break.
-//  - Functionality for reloading in main game state.
-//  - card-animation-remove gets sent back to the client it came from.
-//  - Often, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and causes the game to break.
-//  - Remove an animation from the backlog when a card-animation-remove is received.
+//  - Functionality for reloading in main game state and on join page.
+//  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and causes the game to break.
 //  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
 
 const canvas = document.querySelector("#c");
@@ -146,14 +144,13 @@ const WebsocketHandler = (function() {
           if (mainPlayer.uuid === otherPlayerUUID) {
             const card = mainPlayer.cards.find(card => card.type === cardType);
 
-            card.model.reset = false;
             mainPlayer.playCard(card);
           } else {
             const player = game.players.find(p => p.uuid === otherPlayerUUID);
             game.replacePlayerCard(player, cardType, cardInx);
             const card = player.cards[cardInx];
 
-            card.model.reset = false;
+            // Incase play card is sent before card is repositioned by draw
             game.scene.setPlayerCardModel(card, player.cards.length, cardInx);
             card.model.updateWorldMatrix();
 
@@ -195,7 +192,7 @@ const WebsocketHandler = (function() {
           }
           break;
         case "animation-backlog":
-          game.animationBacklog = JSON.parse(args.slice().join(" "));
+          game.animationBacklog = JSON.parse(args.slice().join(" ")).map(arr => ["normal", ...arr]);
           break;
         case "player-leave":
           otherPlayerUUID = args[0];

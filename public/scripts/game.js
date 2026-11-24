@@ -144,14 +144,12 @@ class Game {
       const cardsJustDealt = [];
 
       const dealCard = (player, cardInx, cardsDealtInx) => {
-        setTimeout(() => {
-          if (cardsDealtInx === 0 || cardsJustDealt[cardsDealtInx-1]) {
-            this.pickupPile.dealCard(player, cardInx, cardsDealt, cardsDealtInx);
-            cardsJustDealt[cardsDealtInx] = true;
-          } else {
-            setTimeout(() => dealCard(player, cardInx, cardsDealtInx), 50);
-          }
-        });
+        if (cardsDealtInx === 0 || cardsJustDealt[cardsDealtInx-1]) {
+          this.pickupPile.dealCard(player, cardInx, cardsDealt, cardsDealtInx);
+          cardsJustDealt[cardsDealtInx] = true;
+        } else {
+          setTimeout(() => dealCard(player, cardInx, cardsDealtInx), 50);
+        }
       }
 
       for (let i=0; i<deckLength; ++i) {
@@ -211,9 +209,9 @@ class Game {
 
           // Create new card, and set model matrix for animation
           const newCard = new Card(this.scene, cardTypes[cardInx]);
-          newCard.model.reset = false;
           player.addCard(newCard, playerCardIndices[cardInx]);
-          this.scene.setPlayerCardModel(newCard, player.cards.length, playerCardIndices[cardInx]);
+
+          this.scene.setPlayerCardModel(newCard, player.cards.length, cardInx);
           newCard.model.updateWorldMatrix();
 
           cards[cardInx] = newCard;
@@ -231,10 +229,17 @@ class Game {
       numOfCardsArr.push(nextPlayer.cards.length);
     });
 
-    // Pass cards to correct destinations
-    this.players.forEach((player, inx) => {
-      player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx], numOfCardsArr[inx]);
-    });
+    // Pass cards to correct destinations (but first, wait until models are ready)
+    const passCards = () => {
+      if (cardsArr.every(cards => cards.every(card => card.model.ready))) {
+        this.players.forEach((player, inx) => {
+          player.passCards(cardsArr[inx], nextPlayerArr[inx], newCardInxsArr[inx], numOfCardsArr[inx]);
+        });
+      } else {
+        setTimeout(() => passCards(), 50);
+      }
+    }
+    passCards();
   }
   
   click(card) {

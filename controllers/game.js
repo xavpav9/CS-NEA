@@ -50,7 +50,7 @@ class GameLogic {
     this.deck.shuffle();
     this.dealt = false;
     this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
-    this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog)
+    this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog but not affect by reverse, and remove removes animations)
     this.newestPlayerIndex = 0; // Index of player being added next
     this.turn = 0;
 
@@ -85,22 +85,24 @@ class GameLogic {
   }
 
   clearPlayerPastAnimations(player) {
-    const animationIDs = [];
     for (let i=0; i<this.pastAnimations.length;) {
       const animation = this.pastAnimations[i];
-      if (animation[0] === "normal") {
-        if (animation[2] === player.uuid) {
-          const animationObj = JSON.parse(animation[1]);
-          if (animationObj !== null) animationIDs.push(parseInt(animationObj.id));
-          this.pastAnimations.splice(i, 1);
-        } else i++;
-      } else {
-        if (animationIDs.includes(parseInt(animation[1]))) {
-          this.pastAnimations.splice(i, 1);
-        } else i++;
+      if (animation[1] === player.uuid) {
+        const animationObj = JSON.parse(animation[0]);
+        this.pastAnimations.splice(i, 1);
+      } else i++;
+    }
+  }
+
+  removePastAnimation(id) { // Remove animation if it has been removed or reversed.
+    for (let i=0; i<this.pastAnimations.length; i++) {
+      const animation = this.pastAnimations[i];
+      const animationObj = JSON.parse(animation[0]);
+      if (animationObj.id === id) {
+        this.pastAnimations.splice(i, 1);
+        break;
       }
     }
-
   }
 
   static getGameFromPlayer(identification) {
