@@ -88,6 +88,7 @@ class Model extends Node { // 3D Model
     this.startRendering = false; // Should this model be rendered starting from the next frame
     this.rendering = false; // Should this model be rendered
     this.toBeRemoved = false; // Remove model on next frame
+    this.reset = true; // Whether the source animation should reset on each frame
 
     this.geometry = this.parseGeometry(`../models/${geometryFile}`, atlasTexcoords); // promise
     this.image = this.getImage(`../textures/${textureFile}`); // promise
@@ -307,6 +308,7 @@ class DOC { // Deck of Cards
 
   addCard(card, index=-1) {
     card.doc = this;
+    card.player = this.player
     if (index === -1) this.cards.push(card);
     else this.cards.splice(index, 0, card);
 
@@ -381,6 +383,15 @@ class Discard extends DOC {
   constructor(scene, cards=[]) {
     super(scene, cards);
   }
+
+  moveBottomCardToTrick(trick, cardInx) {
+    const card = this.cards.shift();
+    if (card) {
+      trick.addCard(card);
+
+      this.scene.moveDiscardToTrick(card, trick, cardInx);
+    }
+  }
 }
 
 class Player {
@@ -410,11 +421,11 @@ class Player {
     this.scene.addDiscard(this.discard);
   }
 
-  addCard(card, index=null) {
+  addCard(card, index=-1) {
     card.player = this;
     card.doc = null;
 
-    if (index) this.cards.splice(index, 0, card);
+    if (index !== -1) this.cards.splice(index, 0, card);
     else this.cards.push(card);
 
     this.scene.addPlayerCard(card)
@@ -533,6 +544,7 @@ class Animation { // Information about an animation currently taking place.
     pickup: 3,
     passCard: 3,
     moveCard: 3,
+    trick: 3,
   }
 
   reverse() {
@@ -553,6 +565,7 @@ class Animation { // Information about an animation currently taking place.
       case "moveCard":
       case "pickup":
       case "play":
+      case "trick":
         object.model.source.translation = this.customTranslation.map(val => val * multiplier);
         break;
       case "passCard":

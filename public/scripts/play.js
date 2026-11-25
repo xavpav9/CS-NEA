@@ -5,7 +5,9 @@ import {Card} from "./objects.js";
 // TODO:
 //  - When hovering at bottom of card, it jitters.
 //  - If a player selects then reloads while another is still loading, the animations break.
-//  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and causes the game to break.
+//  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and can causes the game to break.
+//  - Redisplay tricks on reload.
+//  - Add validation to every argument received over the websocket.
 //  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
 
 const canvas = document.querySelector("#c");
@@ -67,8 +69,8 @@ const WebsocketHandler = (function() {
     const card = game.getSelectedCard();
     const mainPlayer = game.getMainPlayer();
 
-    if (mainPlayer.turn && card.player) {
-      const cardInx = card.player.cards.indexOf(card);
+    if (card && mainPlayer.turn && mainPlayer.cards.includes(card)) {
+      const cardInx = mainPlayer.cards.indexOf(card);
       mainPlayer.turn = false;
       websocket.send(`main ${card.type} ${cardInx}`)
     }
@@ -266,6 +268,11 @@ const WebsocketHandler = (function() {
             game.addPlayerDiscardCard(player, cardType);
           }
           break;
+        case "trick":
+          otherPlayerUUID = args[0];
+
+          player = game.getPlayer(otherPlayerUUID);
+          setTimeout(() => game.moveDiscardsToTrick(player), rp.PLAY_ANIMATION_TIME + 50);
       }
     });
   });

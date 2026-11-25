@@ -148,10 +148,9 @@ function handleGame(ws) {
               const previousPlayer = game.players.find(p => p.index === previousPlayerIndex);
 
               // Change who has what cards serverside
-              let cardToChangeToInx = 0;
+              let cardToChangeToInx = 0; // Inx of the card that the current card is to be changed to
               for (let j = 0; j<player.cards.length; ++j) {
                 if (player.selectionCards.includes(player.cards[j])) {
-
                   player.cards.splice(j, 1, previousPlayer.selectionCards[cardToChangeToInx]);
                   cardToChangeToInx++;
                 }
@@ -160,7 +159,7 @@ function handleGame(ws) {
               // Map other player indices with indexMapper
               const currentAllSelectionIndices = allSelectionIndices.map((num, inx) => {
                 if (inx < i * 3 || inx >= (i + 1) * 3) {
-                  return game.indexMapper[num] % game.getPlayer(ws).cards.length; // Not current player indices, so send the mapped ones.
+                  return game.mapIndex(num, game.getPlayer(ws).cards.length); // Not current player indices, so send the mapped ones.
                 } else {
                   return num; // Indices for current player, so send the actual indices.
                 }
@@ -175,7 +174,8 @@ function handleGame(ws) {
             }
 
             game.setState("main"); // Also sets pastAnimations to [].
-            game.nextTurn(0);
+            game.startingTurn = 0;
+            game.nextTurn(0); // TODO: Set turn to player with the card "2c"
           }
         }
         break;
@@ -184,13 +184,13 @@ function handleGame(ws) {
         if (game) {
           const animationJSON = args[0];
           const playerUUID = args[1];
-          const cardInx = game.indexMapper[args[2]] % game.getPlayer(ws).cards.length;
+          const mappedCardInx = game.mapIndex(args[2], game.getPlayer(ws).cards.length);
 
-          game.pastAnimations.push([animationJSON, playerUUID, cardInx]);
+          game.pastAnimations.push([animationJSON, playerUUID, mappedCardInx]);
 
           for (const otherPlayer of game.players) {
             if (otherPlayer.ws !== ws) {
-              otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${cardInx}`);
+              otherPlayer.ws.send(`card-animation ${animationJSON} ${playerUUID} ${mappedCardInx}`);
             }
           }
         }
@@ -228,18 +228,47 @@ function handleGame(ws) {
           const player = game.getPlayer(ws);
           const cardType = args[0];
           const cardInx = args[1];
+
+          const mappedCardInx = game.mapIndex(cardInx, player.cards.length); // Map before cards are removed from player.
           
           if (player.turn && player.cards.includes(cardType)) {
             game.nextTurn();
             player.cards.splice(player.cards.indexOf(cardType), 1);
             player.discard.push(cardType);
+
+            const trickFinished = (game.turn === game.startingTurn);
+            const trickWinner = game.getTrickWinner();
+
+            if (trickFinished && player.cards.length !== 0) {
+              game.nextTurn(game.players.indexOf(trickWinner));
+              game.startingTurn = game.players.indexOf(trickWinner);
+            }
+
             for (const otherPlayer of game.players) {
               if (otherPlayer === player) {
                 ws.send(`play-card ${player.uuid} ${cardType} ${cardInx}`);
               } else {
-                otherPlayer.ws.send(`play-card ${player.uuid} ${cardType} ${game.indexMapper[cardInx] % player.cards.length}`);
+                otherPlayer.ws.send(`play-card ${player.uuid} ${cardType} ${mappedCardInx}`);
               }
-              otherPlayer.ws.send(`turn ${game.getTurnPlayer().uuid}`);
+
+              if (player.cards.length !== 0) { // Hand not finished
+                otherPlayer.ws.send(`turn ${game.getTurnPlayer().uuid}`);
+
+                if (trickFinished) {
+                  otherPlayer.ws.send(`trick ${trickWinner.uuid}`);
+                }
+              } else {
+                // TODO: Manage hand end (including if there is a winner)
+              }
+            }
+
+            if (trickFinished) {
+              const trickCards = game.clearDiscards();
+              trickWinner.tricks.push(trickCards);
+            }
+
+            if (player.cards.length === 0) {
+              // TODO: Manage hand end (including if there is a winner)
             }
           }
         }

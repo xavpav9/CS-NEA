@@ -177,6 +177,25 @@ class Game {
     }
   }
 
+  moveDiscardsToTrick(player) {
+    if (player) {
+      const trick = new Trick(this.scene);
+      player.addTrick(trick);
+
+      const x = player.position[0] * 0.4;
+      const z = player.position[2] * 0.4;
+
+      trick.model.reset = false;
+      this.scene.setTrickModel(trick, x, z, player.tricks.indexOf(trick));
+      trick.model.updateWorldMatrix();
+      trick.model.reset = true;
+
+      this.players.map(p => p.discard).forEach((discard, inx) => {
+        discard.moveBottomCardToTrick(trick, inx);
+      });
+    }
+  }
+
   deal() {
     if (!(this.justDealt || this.dealt)) {
       const deckLength = this.pickupPile.cards.length;
@@ -251,8 +270,10 @@ class Game {
           const newCard = new Card(this.scene, cardTypes[cardInx]);
           player.addCard(newCard, playerCardIndices[cardInx]);
 
+          newCard.model.reset = false;
           this.scene.setPlayerCardModel(newCard, player.cards.length, cardInx);
           newCard.model.updateWorldMatrix();
+          newCard.model.reset = true;
 
           cards[cardInx] = newCard;
         });
@@ -305,7 +326,7 @@ class Game {
       case "main":
         const playBtn = document.querySelector("#play-card");
         // TODO: Set up main game logic serverside.
-        if (card.player && !card.player.sorting) {
+        if (card.player && !card.player.sorting && !card.doc) { // Card could be in a trick, not in the hand
           this.selectedCard = this.scene.setMainAnimation(card);
           playBtn.dispatchEvent(new Event("click"));
           // card.player.playCard(card);

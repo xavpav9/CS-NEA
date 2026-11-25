@@ -8,6 +8,7 @@ class Player {
     this.selectionIndices = []; // For animations
     this.cards = []; // The card types
     this.discard = []; // The discard card types (first index = bottom of pile)
+    this.tricks = []; // The tricks won for a hand (up to 13)
     this.online = true; // If the player disconnects
     this.turn = false;
   }
@@ -50,14 +51,11 @@ class GameLogic {
     this.deck = new Deck();
     this.deck.shuffle();
     this.dealt = false;
-    this.indexMapper = {}; // Maps card indices to distinct other ones to prevent cheating
+    this.indexMappers = {}; // Each one maps card indices to distinct other ones to prevent cheating
     this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog but not affect by reverse, and remove removes animations)
     this.newestPlayerIndex = 0; // Index of player being added next
-    this.turn = 0;
-
-    const values = [];
-    for (let i=0; i<52; ++i) values.push(i);
-    for (let i=0; i<52; ++i) this.indexMapper[i] = values.splice(Math.floor(Math.random() * values.length), 1)[0];
+    this.turn = 0; // Who has current turn
+    this.startingTurn = 0; // Who started first
 
     GameLogic.games[id] = this;
   }
@@ -106,6 +104,48 @@ class GameLogic {
     }
   }
 
+  isCardBigger(card1, card2) {
+    const priorityNum = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k", "1"];
+
+    let card1Number = parseInt(priorityNum.indexOf(card1.slice(0, -1))) + 1;
+    let card2Number = parseInt(priorityNum.indexOf(card2.slice(0, -1))) + 1;
+
+    const card1Suit = card1.at(-1);
+    const card2Suit = card2.at(-1);
+
+    return card1Suit === card2Suit && card1Number > card2Number;
+  }
+
+  getTrickWinner() {
+    let trickWinner = this.players[this.startingTurn];
+    let trickWinnerCard = trickWinner.discard.at(-1);
+
+    if (trickWinnerCard) {
+      for (let i=(this.startingTurn+1)%this.players.length; i!==this.startingTurn; i=(i+1)%this.players.length) {
+        const possibleWinner = this.players[i];
+        const possibleWinnerCard = possibleWinner.discard.at(-1);
+        if (!possibleWinnerCard) return false;
+        else if (this.isCardBigger(possibleWinnerCard, trickWinnerCard)) {
+          trickWinner = possibleWinner;
+          trickWinnerCard = possibleWinnerCard;
+        }
+      }
+    } else return false;
+
+    return trickWinner;
+  }
+
+  clearDiscards() {
+    const discardCards = [];
+    for (const player of this.players) {
+      let cardType;
+      while (cardType = player.discard.pop()) {
+        discardCards.push(cardType);
+      }
+    }
+    return discardCards;
+  }
+
   static getGameFromPlayer(identification) {
     for (const gameID in GameLogic.games) {
       let game = GameLogic.games[gameID];
@@ -128,6 +168,20 @@ class GameLogic {
 
   getTurnPlayer() {
     return this.players[this.turn];
+  }
+
+  mapIndex(inx, max) { // Different index mapper for different numbers of cards
+    if (this.indexMappers[max]) {
+      return this.indexMappers[max][inx];
+    } else {
+      const indexMapper = {};
+      const values = [];
+      for (let i=0; i<max; ++i) values.push(i);
+      for (let i=0; i<max; ++i) indexMapper[i] = values.splice(Math.floor(Math.random() * values.length), 1)[0];
+      this.indexMappers[max] = indexMapper;
+
+      return indexMapper[inx];
+    }
   }
 
   delete() {

@@ -6,7 +6,7 @@ const rp = { // Rendering Parameters
   CARD_DIST: 16, // Radius of circle which cards lie on from the player.
   DIP: -4, // How far cards are below line-of-sight of player.
 
-  TRICK_COLUMN_SEPARATION: 0.35,
+  TRICK_COLUMN_SEPARATION: 0.4,
   TRICK_ROW_SEPARATION: 0.4,
   TRICKS_PER_ROW: 4,
 
@@ -15,6 +15,7 @@ const rp = { // Rendering Parameters
   PICKUP_ANIMATION_TIME: 2000,
   PASSCARD_ANIMATION_TIME: 2000,
   MOVECARD_ANIMATION_TIME: 1500,
+  DISCARDTOTRICK_ANIMATION_TIME: 1500,
 }
 
 class Scene {
@@ -205,12 +206,12 @@ class Scene {
 
 
   async addPlayerCard(card) {
-    this.playerCards.push(card);
+    if (!this.playerCards.includes(card)) this.playerCards.push(card);
 
     card.model.setParent(card.player.model);
 
     if (!card.model.ready) {
-      this.addModel(card.model);
+      if (!this.models.includes(card.model)) this.addModel(card.model);
     } else {
       card.model.startRendering = true;
     }
@@ -225,12 +226,12 @@ class Scene {
 
 
   async addDocCard(card) {
-    this.docCards.push(card);
+    if (!this.docCards.includes(card)) this.docCards.push(card);
 
     card.model.setParent(card.doc.model);
 
     if (!card.model.ready) {
-      this.addModel(card.model);
+      if (!this.models.includes(card.model)) this.addModel(card.model);
     }
   }
 
@@ -359,8 +360,10 @@ class Scene {
     card.model.setParent(player.model);
 
     card.model.source.reset();
+    card.model.reset = false;
     this.setPlayerCardModel(card, cardInx, cardInx);
-    this.origin.updateWorldMatrix();
+    card.model.updateWorldMatrix();
+    card.model.reset = true;
 
     const position = card.model.worldMatrix.slice(12,15);
 
@@ -380,8 +383,10 @@ class Scene {
     // Position when in newPlayer's hand from origin
     card.model.setParent(otherPlayer.model);
     card.model.source.reset();
+    card.model.reset = false;
     this.setPlayerCardModel(card, numOfCards, newCardInx);
-    this.origin.updateWorldMatrix();
+    card.model.updateWorldMatrix();
+    card.model.reset = true;
 
     const endPosition = card.model.worldMatrix.slice(12, 15);
 
@@ -395,6 +400,19 @@ class Scene {
   }
 
 
+  // Move card from discard pile to trick
+  moveDiscardToTrick(card, trick, cardInx) {
+    // Position of card relative to origin
+    const position = card.model.worldMatrix.slice(12,15);
+
+    // Set origin of position to the trick model
+    for (let i=0; i<3; ++i) position[i] -= trick.model.source.translation[i];
+
+    card.setAnimation(new Animation("trick", rp.DISCARDTOTRICK_ANIMATION_TIME, rp.DISCARDTOTRICK_ANIMATION_TIME, position));
+    card.reverseAnimation("trick");
+  }
+
+
   // Card stays with same player
   moveCard(card, newCardInx, animationCallback) {
     // Old position from player
@@ -402,7 +420,10 @@ class Scene {
 
     // New position from player
     card.model.source.reset();
+    card.model.reset = false;
     this.setPlayerCardModel(card, card.player.cards.length, newCardInx);
+    card.model.updateWorldMatrix();
+    card.model.reset = true;
 
     const startPosition = card.model.source.translation.slice();
 
@@ -451,7 +472,7 @@ class Scene {
     const model = card.model;
 
     model.source.rotation[1] += card.player.angle;
-    model.source.translation[1] += count * .05; // .05 = depth of card
+    model.source.translation[1] += 0.025 + 0.05 * count; // 0.05 = depth of card
 
     return model;
   }
@@ -466,6 +487,27 @@ class Scene {
     model.source.rotation[1] += (card.randomness - .5) * (Math.PI / 32)
     model.source.translation[0] += (card.randomness - .5) * .4
     model.source.translation[2] += (card.randomness - .5) * .4
+  }
+
+  setTrickModel(trick, x, z, trickCount) {
+
+    // Tricks are arranged in a grid. These are there relative placements in this grid.
+    const columnOffset = rp.TRICK_COLUMN_SEPARATION * (trickCount % rp.TRICKS_PER_ROW - (rp.TRICKS_PER_ROW-1)/2); // Offset from centre
+    const rowOffset = rp.TRICK_ROW_SEPARATION * (Math.floor(trickCount / rp.TRICKS_PER_ROW)); // Offset from side nearest discard pile
+
+    const currentX = x * (1 + rowOffset);
+    const currentZ = z * (1 + rowOffset);
+
+    // Placing tricks on the normal of the line (0, 0) to (z, x);
+    trick.model.source.translation[0] += currentX + z * columnOffset;
+    trick.model.source.translation[2] += currentZ + -x * columnOffset;
+
+
+    let trickCardCount = 0;
+    for (const card of trick.cards) {
+      this.setTrickCardModel(card, trickCardCount);
+      trickCardCount++;
+    }
   }
 
 
@@ -547,7 +589,7 @@ class Scene {
 
       // Reset TRS and Handle animations
       for (const card of this.getAllCards()) {
-        card.model.source.reset();
+        if (card.model.reset) card.model.source.reset();
 
         card.model.source.scaling = [1.3, 1.3, 1];
 
@@ -578,29 +620,13 @@ class Scene {
         // Set up tricks in front of players (on table)
         const numOfTricks = player.tricks.length;
 
+        // x and z of front centre point of tricks (on side of discard pile)
         const x = player.position[0] * 0.4;
         const z = player.position[2] * 0.4;
 
         let trickCount = 0;
         for (const trick of player.tricks) {
-
-          // Tricks are arranged in a grid. These are there relative placements in this grid.
-          const columnOffset = rp.TRICK_COLUMN_SEPARATION * (trickCount % rp.TRICKS_PER_ROW - (rp.TRICKS_PER_ROW-1)/2);
-          const rowOffset = rp.TRICK_ROW_SEPARATION * (Math.floor(trickCount / rp.TRICKS_PER_ROW));
-
-          const currentX = x * (1 + rowOffset);
-          const currentZ = z * (1 + rowOffset);
-
-          // Placing tricks on the normal of the line (0, 0) to (z, x);
-          trick.model.source.translation[0] += currentX + z * columnOffset;
-          trick.model.source.translation[2] += currentZ + -x * columnOffset;
-
-
-          let trickCardCount = 0;
-          for (const card of trick.cards) {
-            this.setTrickCardModel(card, trickCardCount);
-            trickCardCount++;
-          }
+          this.setTrickModel(trick, x, z, trickCount);
           trickCount++;
         }
 
