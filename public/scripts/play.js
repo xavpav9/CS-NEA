@@ -5,7 +5,7 @@ import {Card} from "./objects.js";
 // TODO:
 //  - When hovering at bottom of card, it jitters.
 //  - If a player selects then reloads while another is still loading, the animations break.
-//  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and can causes the game to break.
+//  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and can causes the game to break - one instance of this is when they get dealt 18 cards (others get 17) but not always?
 //  - Redisplay tricks on reload.
 //  - Add validation to every argument received over the websocket.
 //  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
@@ -69,10 +69,9 @@ const WebsocketHandler = (function() {
     const card = game.getSelectedCard();
     const mainPlayer = game.getMainPlayer();
 
-    if (card && mainPlayer.turn && mainPlayer.cards.includes(card)) {
+    if (card && mainPlayer.cards.includes(card)) {
       const cardInx = mainPlayer.cards.indexOf(card);
-      mainPlayer.turn = false;
-      websocket.send(`main ${card.type} ${cardInx}`)
+      websocket.send(`main ${card.type} ${cardInx}`);
     }
   });
 

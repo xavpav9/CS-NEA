@@ -310,28 +310,17 @@ class Game {
   click(card) {
     switch (this.state) {
       case "idle":
-        /* For offline play
-        if (card.doc === this.pickupPile) {
-          this.deal();
-
-          this.players.find(player => player.mainPlayer).turn = true;
-          this.setState("start");
-        }
-        */
         break;
       case "start": // Select 3 cards to give to an opponent
         if (card.player) this.selection = this.scene.setStartAnimation(card);
 
         break;
       case "main":
-        const playBtn = document.querySelector("#play-card");
-        // TODO: Set up main game logic serverside.
-        if (card.player && !card.player.sorting && !card.doc) { // Card could be in a trick, not in the hand
+        const playCardBtn = document.querySelector("#play-card");
+        const player = card.player;
+        if (player && player.mainPlayer && !player.sorting && !player.passingSelection && player.cards.includes(card)) { // Card could be in a trick, not in the hand, but still has a player
           this.selectedCard = this.scene.setMainAnimation(card);
-          playBtn.dispatchEvent(new Event("click"));
-          // card.player.playCard(card);
-
-          // TODO: Manage player turns
+          playCardBtn.dispatchEvent(new Event("click"));
         }
 
         break;

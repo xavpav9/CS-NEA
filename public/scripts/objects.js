@@ -405,7 +405,7 @@ class Player {
     this.name = name;
 
     this.mainPlayer = mainPlayer; // Whether this player is the current client or not.
-    this.turn = false; // Whether it is this players current turn
+    this.turn = false; // Whether it is this player's turn. For visual use (server handles practical use).
     this.sorting = false; // Whether players cards are currently being sorted or not.
     this.passingSelection = false; // Whether the player is awaiting a pass-cards from server or not.
 

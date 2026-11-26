@@ -124,16 +124,9 @@ class Scene {
   }
 
   setMainAnimation(card) {
-    const player = card.player;
+    return card;
 
-    if (player && player.mainPlayer && player.turn) {
-      if (!this.playerCards.find(card => card.getAnimationType() === "upstick" && card.player === player)) {
-        card.setAnimation(new Animation("upstick", 0));
-        return card;
-      }
-    }
-
-    return null;
+    /* Possibility to add an animation on selection. e.g. an upstick: */
   }
 
   playCard(card) {

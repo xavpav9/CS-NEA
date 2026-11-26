@@ -141,21 +141,31 @@ function handleGame(ws) {
               allSelectionIndices.push(...player.selectionIndices);
             }
 
-            let i = 0;
+            // Update cards serverside
             for (const player of game.players) {
               let previousPlayerIndex = player.index - 1;
               if (previousPlayerIndex < 0) previousPlayerIndex += game.players.length;
-              const previousPlayer = game.players.find(p => p.index === previousPlayerIndex);
+              player.previousPlayer = game.players.find(p => p.index === previousPlayerIndex);
+              // TODO: Add functionality for the previous player to be anyone on the table.
 
-              // Change who has what cards serverside
               let cardToChangeToInx = 0; // Inx of the card that the current card is to be changed to
               for (let j = 0; j<player.cards.length; ++j) {
                 if (player.selectionCards.includes(player.cards[j])) {
-                  player.cards.splice(j, 1, previousPlayer.selectionCards[cardToChangeToInx]);
+                  player.cards.splice(j, 1, player.previousPlayer.selectionCards[cardToChangeToInx]);
                   cardToChangeToInx++;
                 }
               }
+            }
 
+            // Update game serverside
+            game.startingTurn = game.players.indexOf(game.players.find(player => player.cards.includes("2c")));
+            game.setState("main"); // Also sets pastAnimations to [].
+            game.nextTurn(game.startingTurn);
+
+
+            // Update cards clientside
+            let i = 0;
+            for (const player of game.players) {
               // Map other player indices with indexMapper
               const currentAllSelectionIndices = allSelectionIndices.map((num, inx) => {
                 if (inx < i * 3 || inx >= (i + 1) * 3) {
@@ -165,17 +175,12 @@ function handleGame(ws) {
                 }
               });
 
-              // Change who has what cards clientside
-              player.ws.send(`pass-cards ${previousPlayer.selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
+              player.ws.send(`pass-cards ${player.previousPlayer.selectionCards.join(' ')} ${currentAllSelectionIndices.join(' ')}`);
               player.ws.send("main");
               player.ws.send(`turn ${game.getTurnPlayer().uuid}`);
 
               ++i;
             }
-
-            game.setState("main"); // Also sets pastAnimations to [].
-            game.startingTurn = 0;
-            game.nextTurn(0); // TODO: Set turn to player with the card "2c"
           }
         }
         break;
@@ -232,6 +237,10 @@ function handleGame(ws) {
           const mappedCardInx = game.mapIndex(cardInx, player.cards.length); // Map before cards are removed from player.
           
           if (player.turn && player.cards.includes(cardType)) {
+            if (game.startingTurn === game.turn && cardType !== "2c") {
+              break; // Must start with a 2c
+            }
+
             game.nextTurn();
             player.cards.splice(player.cards.indexOf(cardType), 1);
             player.discard.push(cardType);

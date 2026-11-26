@@ -11,6 +11,7 @@ class Player {
     this.tricks = []; // The tricks won for a hand (up to 13)
     this.online = true; // If the player disconnects
     this.turn = false;
+    this.previousPlayer = null; // The player who is passing their cards to this player.
   }
 }
 
