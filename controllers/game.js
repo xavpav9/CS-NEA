@@ -56,6 +56,7 @@ class GameLogic {
     this.pastAnimations = []; // (playercard) Animations that have already happened (Animation backlog but not affect by reverse, and remove removes animations)
     this.newestPlayerIndex = 0; // Index of player being added next
     this.turn = 0; // Who has current turn
+    this.trickNumber = 0; // Current trick number of hand
     this.startingTurn = 0; // Who started first
 
     GameLogic.games[id] = this;
@@ -165,6 +166,10 @@ class GameLogic {
     this.players.forEach((player, inx) => {
       player.turn = (this.turn === inx);
     });
+  }
+
+  nextTrick(trickNumber=-1) {
+    this.trickNumber = (trickNumber === -1) ? (this.trickNumber + 1) : trickNumber;
   }
 
   getTurnPlayer() {

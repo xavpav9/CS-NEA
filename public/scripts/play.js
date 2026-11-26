@@ -4,9 +4,8 @@ import {Card} from "./objects.js";
 
 // TODO:
 //  - When hovering at bottom of card, it jitters.
-//  - If a player selects then reloads while another is still loading, the animations break.
+//  - When dealing cards, if you tab out, it completely ruins the dealing animations until the user refreshes the canvas.
 //  - Sometimes, a card is not loaded properly (rendered at the origin, but not in anyone's hand) and can causes the game to break - one instance of this is when they get dealt 18 cards (others get 17) but not always?
-//  - Redisplay tricks on reload.
 //  - Add validation to every argument received over the websocket.
 //  - FIX ALL ANIMATION INCONSISTENCIES ACROSS CLIENTS.
 
@@ -84,6 +83,8 @@ const WebsocketHandler = (function() {
       const mainPlayer = game.getMainPlayer();
 
       game.clearPlayerInfo();
+      game.addPlayer("back", true, uuid, name);
+
       mainPlayer.passingSelection = false;
       mainPlayer.sorting = false;
       websocket.send(`refresh ${canvas.dataset.gameid} ${name} ${uuid}`);
@@ -180,6 +181,12 @@ const WebsocketHandler = (function() {
             player.playCard(player.cards[cardInx]);
           }
           break;
+        case "trick":
+          otherPlayerUUID = args[0];
+
+          player = game.getPlayer(otherPlayerUUID);
+          setTimeout(() => game.moveDiscardsToTrick(player), rp.PLAY_ANIMATION_TIME + 50);
+          break;
         case "card-animation":
           animationJSON = args.slice(0, -2).join(" ");
           otherPlayerUUID = args[1];
@@ -221,7 +228,7 @@ const WebsocketHandler = (function() {
             }
           }
           break;
-        case "cards":
+        case "refresh-cards":
           const numOfPlayers = parseInt(args[0]);
           const playerCardCounts = args.slice(1, numOfPlayers+1);
           cardTypes = args.slice(numOfPlayers+1);
@@ -256,7 +263,7 @@ const WebsocketHandler = (function() {
           setTimeout(() => clearAnimationBacklogAfterReload(), 500);
 
           break;
-        case "discard":
+        case "refresh-discard":
           otherPlayerUUID = args[0];
           cardTypes = args.slice(1);
 
@@ -267,11 +274,13 @@ const WebsocketHandler = (function() {
             game.addPlayerDiscardCard(player, cardType);
           }
           break;
-        case "trick":
+        case "refresh-trick":
           otherPlayerUUID = args[0];
+          cardTypes = args.slice(1);
 
           player = game.getPlayer(otherPlayerUUID);
-          setTimeout(() => game.moveDiscardsToTrick(player), rp.PLAY_ANIMATION_TIME + 50);
+          game.addTrick(player, cardTypes);
+          break;
       }
     });
   });

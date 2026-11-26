@@ -27,7 +27,6 @@ class Scene {
     this.players = [];
     this.playerCards = [];
 
-    this.pickups = [];
     this.tricks = [];
     this.discards = [];
     this.docCards = [];
@@ -172,7 +171,10 @@ class Scene {
   }
 
   removePlayer(player) {
-    if (this.players.includes(player)) this.players.splice(this.players.indexOf(player), 1);
+    if (this.players.includes(player)) {
+      this.players.splice(this.players.indexOf(player), 1);
+      player.model.setParent(null);
+    }
   }
 
 
@@ -183,6 +185,14 @@ class Scene {
   }
 
 
+  removeTrick(trick) {
+    if (this.tricks.includes(trick)) {
+      this.tricks.splice(this.tricks.indexOf(trick), 1);
+      trick.model.setParent(null);
+    }
+  }
+
+
   async addDiscard(discard, player) {
     this.discards.push(discard);
 
@@ -190,11 +200,26 @@ class Scene {
   }
 
 
-  async setPickup(pickup) {
+  removeDiscard(discard) {
+    if (this.discards.includes(discard)) {
+      this.discards.splice(this.discards.indexOf(discard), 1);
+      discard.model.setParent(null);
+    }
+  }
+
+
+  async setPickupPile(pickup) {
     this.pickupPile = pickup;
-    this.pickups.push(pickup);
 
     pickup.model.setParent(this.origin);
+  }
+
+
+  removePickupPile() {
+    if (this.pickupPile) {
+      this.pickupPile.model.setParent(null);
+      this.pickupPile = null;
+    }
   }
 
 
@@ -214,6 +239,7 @@ class Scene {
   removePlayerCard(card) {
     if (this.playerCards.includes(card)) {
       this.playerCards.splice(this.playerCards.indexOf(card), 1);
+      card.model.setParent(null);
     }
   }
 
@@ -232,6 +258,7 @@ class Scene {
   removeDocCard(card) {
     if (this.docCards.includes(card)) {
       this.docCards.splice(this.docCards.indexOf(card), 1);
+      card.model.setParent(null);
     }
   }
 
@@ -513,8 +540,8 @@ class Scene {
   }
 
   getAllDocs() {
-    const docs = [];
-    for (const doc of this.pickups.concat(this.tricks).concat(this.discards)) {
+    const docs = (this.pickupPile) ? [this.pickupPile] : [];
+    for (const doc of this.tricks.concat(this.discards)) {
       if (!docs.includes(doc)) docs.push(doc);
     }
     return docs;
@@ -642,12 +669,12 @@ class Scene {
       const viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
 
 
-      // Update card source matrices
-      let docCardCount = 0;
-      for (const doc of this.pickups) {
-        for (const card of doc.cards) {
-          this.setPickupCardModel(card, docCardCount);
-          docCardCount++;
+      // Update card source matrices for pickup pile
+      if (this.pickupPile) { 
+        let pickupPileCardCount = 0;
+        for (const card of this.pickupPile.cards) {
+          this.setPickupCardModel(card, pickupPileCardCount);
+          pickupPileCardCount++;
         }
       }
 

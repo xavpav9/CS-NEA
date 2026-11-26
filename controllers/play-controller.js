@@ -12,7 +12,7 @@ async function get(req, res) {
   // TODO: If game is full (check database), redirect player elsewhere.
 
 
-  if (uuid.length) {
+  if (uuid.length) { // TODO: Breaks if you reload before a deal.
     GameLogic.games[gameID].getPlayer(uuid).online = true;
   } else if (gameID && name) {
     uuid = crypto.randomUUID();
@@ -115,10 +115,14 @@ function handleGame(ws) {
               const numsOfCards = game.players.map(player => player.cards.length);
 
               ws.send(game.state);
-              ws.send(`cards ${game.players.length} ${numsOfCards.join(" ")} ${newPlayer.cards.join(" ")}`);
+              ws.send(`refresh-cards ${game.players.length} ${numsOfCards.join(" ")} ${newPlayer.cards.join(" ")}`);
               for (const player of game.players) {
                 if (player.discard.length) {
-                  ws.send(`discard ${player.uuid} ${player.discard.join(" ")}`);
+                  ws.send(`refresh-discard ${player.uuid} ${player.discard.join(" ")}`);
+                }
+
+                for (const trick of player.tricks) {
+                  ws.send(`refresh-trick ${player.uuid} ${trick.join(" ")}`);
                 }
               }
 
@@ -161,6 +165,7 @@ function handleGame(ws) {
             game.startingTurn = game.players.indexOf(game.players.find(player => player.cards.includes("2c")));
             game.setState("main"); // Also sets pastAnimations to [].
             game.nextTurn(game.startingTurn);
+            game.nextTrick(0);
 
 
             // Update cards clientside
@@ -237,7 +242,7 @@ function handleGame(ws) {
           const mappedCardInx = game.mapIndex(cardInx, player.cards.length); // Map before cards are removed from player.
           
           if (player.turn && player.cards.includes(cardType)) {
-            if (game.startingTurn === game.turn && cardType !== "2c") {
+            if (game.startingTurn === game.turn && game.trickNumber === 0 && cardType !== "2c") {
               break; // Must start with a 2c
             }
 
@@ -250,6 +255,7 @@ function handleGame(ws) {
 
             if (trickFinished && player.cards.length !== 0) {
               game.nextTurn(game.players.indexOf(trickWinner));
+              game.nextTrick();
               game.startingTurn = game.players.indexOf(trickWinner);
             }
 

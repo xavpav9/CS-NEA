@@ -54,22 +54,19 @@ class Game {
 
     this.players = [];
 
-    this.scene.setPickup(this.pickupPile);
+    this.scene.setPickupPile(this.pickupPile);
     this.scene.render();
   }
 
   clearPlayerInfo() {
-    for (let i=0; i<this.players.length;) {
-      const player = this.players[i];
+    while (this.players.length) {
+      const player = this.players.shift();
 
       while (player.cards.length) {
         player.removeCard(player.cards[0], false);
       }
 
-      if (!player.mainPlayer) { // Do not clear mainPlayer player.
-        this.players.splice(i, 1);
-        this.scene.removePlayer(player);
-      } else i++;
+      this.scene.removePlayer(player); // MainPlayer should be readded by whatever called this function
     }
 
     // Clear up any other cards (including hopefully any glitchy ones)
@@ -82,6 +79,16 @@ class Game {
         this.scene.removeModel(card.model);
       }
     }
+
+    this.scene.removePickupPile();
+    for (const doc of this.scene.getAllDocs()) {
+      this.scene.removeTrick(doc);
+      this.scene.removeDiscard(doc);
+      // These have no rendered model. (Model is only a node in the scene graph).
+    }
+
+    this.pickupPile = new Pickup(this.scene, this.deck.cards);
+    this.scene.setPickupPile(this.pickupPile);
   }
 
   getPlayer(uuid) {
@@ -196,6 +203,11 @@ class Game {
     }
   }
 
+  addTrick(player, cardTypes) {
+    const trick = new Trick(this.scene, cardTypes.map(cardType => new Card(this.scene, cardType)));
+    player.addTrick(trick);
+  }
+
   deal() {
     if (!(this.justDealt || this.dealt)) {
       const deckLength = this.pickupPile.cards.length;
@@ -225,6 +237,7 @@ class Game {
       const clearAnimationBacklogAfterDeal = () => {
         if (cardsDealt.at(-1)) { // When all cards have been dealt.
           this.clearAnimationBacklog();
+          this.deck.empty();
           this.dealt = true;
         } else {
           setTimeout(() => clearAnimationBacklogAfterDeal(), 50);
